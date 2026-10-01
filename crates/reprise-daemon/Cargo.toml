@@ -1,0 +1,20 @@
+[package]
+name = "reprise-daemon"
+description = "Daemon configuration and hosting interface for Reprise."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "reprised"
+path = "src/main.rs"
+
+[dependencies]
+bon.workspace = true
+clap.workspace = true
+reprise-api.workspace = true
+
+[lints]
+workspace = true
