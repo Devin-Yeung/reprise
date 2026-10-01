@@ -1,19 +1,13 @@
 {
   dockerTools,
-  busybox,
-  tini,
-  reprise-test-tools,
+  reprise-test-runtime,
 }:
 
 dockerTools.buildLayeredImage {
   name = "reprise-test-image";
   # Omit tag: dockerTools derives it from the Nix output hash, not "latest".
   created = "1970-01-01T00:00:01Z";
-  contents = [
-    reprise-test-tools
-    busybox
-    tini
-  ];
+  contents = [ reprise-test-runtime ];
 
   config = {
     Env = [ "PATH=/bin" ];

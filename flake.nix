@@ -13,8 +13,11 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         reprise-test-tools = pkgs.callPackage ./nix/reprise-test-tools.nix { };
-        reprise-test-image = pkgs.callPackage ./nix/reprise-test-image.nix {
+        reprise-test-runtime = pkgs.callPackage ./nix/reprise-test-runtime.nix {
           inherit reprise-test-tools;
+        };
+        reprise-test-image = pkgs.callPackage ./nix/reprise-test-image.nix {
+          inherit reprise-test-runtime;
         };
       in
       {
@@ -23,7 +26,7 @@
           default = reprise-test-tools;
         }
         // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          inherit reprise-test-image;
+          inherit reprise-test-image reprise-test-runtime;
           default = reprise-test-image;
         };
       }
