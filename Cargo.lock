@@ -5,3 +5,10 @@ version = 4
 [[package]]
 name = "reprise"
 version = "0.1.0"
+dependencies = [
+ "reprise-api",
+]
+
+[[package]]
+name = "reprise-api"
+version = "0.1.0"
