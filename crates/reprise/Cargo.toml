@@ -1,0 +1,15 @@
+[package]
+name = "reprise"
+description = "Pause an environment. Resume its state."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Sub-crates are re-exported from src/lib.rs as they land, e.g.
+# reprise-core = { workspace = true }
+
+[lints]
+workspace = true
