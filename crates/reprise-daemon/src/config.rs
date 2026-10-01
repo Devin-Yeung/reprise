@@ -3,13 +3,13 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-use bon::Builder;
+use typed_builder::TypedBuilder;
 
 /// Configuration for one daemon, one state writer, and one Docker endpoint.
 ///
 /// The initial deployment is single-node. Remote Docker connectivity does not
 /// imply access to that host's filesystem or checkpoint artifacts.
-#[derive(Clone, Debug, Builder)]
+#[derive(Clone, Debug, TypedBuilder)]
 pub struct DaemonConfig {
     /// HTTP bind address. Exposing a non-loopback listener requires an
     /// authentication policy; the first implementation should reject it.
@@ -28,7 +28,7 @@ pub struct DaemonConfig {
 ///
 /// For remote development, this may be the local end of an externally managed
 /// SSH tunnel. Docker CLI contexts and SSH sessions are not managed here.
-#[derive(Clone, Debug, Builder)]
+#[derive(Clone, Debug, TypedBuilder)]
 pub struct DockerConfig {
     /// Unix socket on the daemon host.
     pub socket: PathBuf,
@@ -37,7 +37,7 @@ pub struct DockerConfig {
 }
 
 /// One fixed environment definition; no template registry is implied.
-#[derive(Clone, Debug, Builder)]
+#[derive(Clone, Debug, TypedBuilder)]
 pub struct FixedTemplate {
     /// External template identifier. Conversion to the domain TemplateId and
     /// validation are deferred; unknown identifiers must not be silently ignored.
@@ -47,7 +47,7 @@ pub struct FixedTemplate {
 }
 
 /// Storage owned by the daemon, distinct from runtime checkpoint staging.
-#[derive(Clone, Debug, Builder)]
+#[derive(Clone, Debug, TypedBuilder)]
 pub struct SnapshotStorageConfig {
     /// Directory on the daemon host for immutable, committed snapshots.
     ///

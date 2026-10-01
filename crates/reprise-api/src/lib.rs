@@ -35,7 +35,9 @@ pub mod service;
 
 pub use capabilities::{Capabilities, RuntimeInfo};
 pub use error::Error;
-pub use execution::{Channel, EventPage, Execute, Execution, ExecutionEvent, ExecutionState};
+pub use execution::{
+    Channel, EventPage, Execute, ExecuteBuilder, Execution, ExecutionEvent, ExecutionState,
+};
 pub use files::{Digest, FileContent, FileVersion, ReadFile, WriteFile};
 pub use id::{ExecutionId, IdempotencyKey, OperationId, SandboxId, SnapshotId, TemplateId};
 pub use operation::{

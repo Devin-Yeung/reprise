@@ -12,7 +12,7 @@ name = "reprised"
 path = "src/main.rs"
 
 [dependencies]
-bon.workspace = true
+typed-builder.workspace = true
 clap.workspace = true
 reprise-api.workspace = true
 

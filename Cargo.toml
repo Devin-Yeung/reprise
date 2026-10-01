@@ -10,7 +10,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/Devin-Yeung/reprise"
 
 [workspace.dependencies]
-bon = "3.10"
+typed-builder = "0.23"
 clap = { version = "4.6", features = ["derive"] }
 reprise = { path = "crates/reprise", version = "0.1.0" }
 reprise-api = { path = "crates/reprise-api", version = "0.1.0" }
