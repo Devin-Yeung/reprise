@@ -1,0 +1,57 @@
+name: Integration test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  image-preparation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      REPRISE_DOCKER_SOCKET: /var/run/docker.sock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+
+      - name: Build saved test image without loading Docker
+        run: |
+          export REPRISE_TEST_IMAGE_ARCHIVE="$RUNNER_TEMP/reprise-test-image.tar"
+          echo "REPRISE_TEST_IMAGE_ARCHIVE=$REPRISE_TEST_IMAGE_ARCHIVE" >> "$GITHUB_ENV"
+          nix build --no-update-lock-file path:.#reprise-test-image --out-link result-test-image
+          # dockerTools emits gzip; the preparation API accepts uncompressed tar.
+          gzip --decompress --stdout result-test-image > "$REPRISE_TEST_IMAGE_ARCHIVE"
+
+      - name: Install gVisor and expose its Docker runtime
+        run: |
+          curl -fsSL https://gvisor.dev/archive.key | sudo gpg --dearmor -o /usr/share/keyrings/gvisor-archive-keyring.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/gvisor-archive-keyring.gpg] https://storage.googleapis.com/gvisor/releases release main" | sudo tee /etc/apt/sources.list.d/gvisor.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y runsc
+          sudo runsc install --runtime=runsc -- --platform=systrap
+          sudo systemctl restart docker
+          docker --host "unix://$REPRISE_DOCKER_SOCKET" info
+          runsc --version
+
+      - uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          components: clippy, rustfmt
+
+      - name: Check the workspace and run image preparation
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          cargo test --locked --workspace --all-targets
+          cargo test --locked --workspace --doc
+          cargo test --locked -p reprise-test-support --test image_preparation -- --ignored --nocapture
+
+      - name: Docker diagnostics
+        if: failure()
+        run: |
+          docker --host "unix://$REPRISE_DOCKER_SOCKET" ps --all
+          sudo journalctl --unit=docker --no-pager --lines=100
