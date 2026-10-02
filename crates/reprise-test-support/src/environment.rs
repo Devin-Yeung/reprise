@@ -1,92 +1,122 @@
 use std::path::Path;
 use std::time::Duration;
 
+use anyhow::{Context, Result, ensure};
 use bollard::Docker;
+use bollard::errors::Error;
 use bollard::models::{ImageInspect, Platform};
+use bollard::query_parameters::ImportImageOptions;
+use futures_util::TryStreamExt;
 
 use crate::archive::ValidatedArchive;
-use crate::{PreparationError, PreparedImage};
+use crate::{ImagePreparation, PreparedImage};
 
-/// A Docker connection for preparing test images.
-#[expect(
-    dead_code,
-    reason = "client and budget are retained for the future implementation"
-)]
+/// A Docker connection for preparing test images. Safe to share among parallel tests.
 pub struct DockerTestEnvironment {
     docker: Docker,
     timeout: Duration,
 }
 
 impl DockerTestEnvironment {
-    /// Connect to a Docker Unix socket and negotiate the Engine API.
+    /// Connect to an explicit Docker Unix socket and negotiate the Engine version.
+    /// `timeout` bounds connection and each subsequent preparation as a whole.
+    pub async fn connect(socket: impl AsRef<Path>, timeout: Duration) -> Result<Self> {
+        ensure!(!timeout.is_zero(), "timeout must be nonzero");
+        let socket = socket
+            .as_ref()
+            .to_str()
+            .context("socket path must be UTF-8")?;
+        ensure!(
+            !socket.is_empty() && !socket.contains("://"),
+            "expected a Unix socket path, not a URI"
+        );
+        let docker = tokio::time::timeout(timeout, async {
+            Docker::connect_with_unix(
+                socket,
+                timeout.as_secs().saturating_add(1),
+                bollard::API_DEFAULT_VERSION,
+            )?
+            .negotiate_version()
+            .await
+        })
+        .await
+        .context("Docker connection timed out")??;
+        Ok(Self { docker, timeout })
+    }
+
+    /// Prepare a single-image, uncompressed Docker save tar matching the host.
     ///
-    /// `timeout` bounds this connection and, as a fresh budget, each
-    /// [`Self::ensure_image`] call.
-    ///
-    /// # Panics
-    /// Not implemented yet.
-    pub async fn connect(
-        _socket: impl AsRef<Path>,
-        _timeout: Duration,
-    ) -> Result<Self, PreparationError> {
-        todo!("validate settings and connect_client within the connection budget")
+    /// Supports Linux amd64/arm64 without variants. Keep the fixture immutable;
+    /// the archive is read even on cache hits. Only a lookup 404 triggers upload,
+    /// which also imports archive tags. Concurrent misses may each upload.
+    /// Timeout bounds the caller's wait; blocking reads or Docker-side loading
+    /// may continue after cancellation. No shared images are removed.
+    pub async fn ensure_image(&self, archive: impl AsRef<Path>) -> Result<PreparedImage> {
+        tokio::time::timeout(self.timeout, async {
+            let archive = ValidatedArchive::read(archive.as_ref()).await?;
+            self.verify_host_platform(&archive.platform).await?;
+            let (image, preparation) = match self.find_image(&archive.image_id).await? {
+                Some(image) => (image, ImagePreparation::Cached),
+                None => (self.load_image(&archive).await?, ImagePreparation::Loaded),
+            };
+            archive.verify_image(&image)?;
+            Ok(PreparedImage { image, preparation })
+        })
+        .await
+        .context("image preparation timed out")?
     }
 
-    /// Prepare a single-image Docker save tar for this endpoint.
-    ///
-    /// Supports uncompressed Linux amd64/arm64 archives without variants,
-    /// matching the Docker host's platform. The archive is read even on cache
-    /// hits; keep it unchanged during the call.
-    ///
-    /// Only an initial image lookup 404 triggers upload. Loading also imports
-    /// the archive's tags; cancellation or timeout may leave Docker uploading.
-    ///
-    /// # Panics
-    /// Not implemented yet.
-    pub async fn ensure_image(
-        &self,
-        _archive: impl AsRef<Path>,
-    ) -> Result<PreparedImage, PreparationError> {
-        todo!("validate_archive, verify_host_platform, find_image, optional load, verify_image")
-    }
-}
-
-#[expect(dead_code, reason = "private implementation steps are not wired yet")]
-impl DockerTestEnvironment {
-    async fn connect_client(
-        _socket: &Path,
-        _timeout: Duration,
-    ) -> Result<Docker, PreparationError> {
-        todo!("bollard::Docker::connect_with_unix followed by negotiate_version")
+    async fn verify_host_platform(&self, platform: &Platform) -> Result<()> {
+        let host = self.docker.info().await.context("inspect Docker host")?;
+        let architecture = host
+            .architecture
+            .as_deref()
+            .map(|architecture| match architecture {
+                "x86_64" => "amd64",
+                "aarch64" => "arm64",
+                other => other,
+            });
+        ensure!(
+            host.os_type == platform.os && architecture == platform.architecture.as_deref(),
+            "archive platform {:?} does not match Docker host {:?}/{:?}",
+            platform,
+            host.os_type,
+            architecture
+        );
+        Ok(())
     }
 
-    /// Normalize Engine architecture spellings before comparing platforms.
-    async fn verify_host_platform(&self, _platform: &Platform) -> Result<(), PreparationError> {
-        todo!("compare archive platform to bollard SystemInfo")
+    async fn find_image(&self, image_id: &str) -> Result<Option<ImageInspect>> {
+        // Absence is a cache miss only before loading, not after it.
+        match self.docker.inspect_image(image_id).await {
+            Ok(image) => Ok(Some(image)),
+            Err(Error::DockerResponseServerError {
+                status_code: 404, ..
+            }) => Ok(None),
+            Err(error) => Err(error).context("look up test image"),
+        }
     }
 
-    /// Inspect an immutable ID; only a 404 becomes `None`.
-    async fn find_image(&self, _image_id: &str) -> Result<Option<ImageInspect>, PreparationError> {
-        todo!("bollard inspect_image with initial-lookup 404 handling")
-    }
-
-    /// Consume the complete load stream, including errors reported after upload.
-    async fn load_image(&self, _archive: &mut ValidatedArchive) -> Result<(), PreparationError> {
-        todo!("stream archive using bollard and consume the complete load response")
-    }
-
-    /// Inspect after loading; unlike [`Self::find_image`], a 404 is a failure.
-    async fn inspect_loaded_image(
-        &self,
-        _image_id: &str,
-    ) -> Result<ImageInspect, PreparationError> {
-        todo!("bollard inspect_image with mandatory post-load success")
-    }
-
-    fn verify_image(
-        _image: &ImageInspect,
-        _archive: &ValidatedArchive,
-    ) -> Result<(), PreparationError> {
-        todo!("validate bollard image facts against archive identity and platform")
+    async fn load_image(&self, archive: &ValidatedArchive) -> Result<ImageInspect> {
+        let mut response = self.docker.import_image_stream(
+            ImportImageOptions::default(),
+            archive.upload_stream()?,
+            None,
+        );
+        // HTTP success is not load success: consume late stream failures too.
+        while let Some(message) = response.try_next().await.context("load test image")? {
+            if let Some(detail) = message.error_detail {
+                anyhow::bail!(
+                    "load test image: {}",
+                    detail
+                        .message
+                        .unwrap_or_else(|| format!("Docker error {:?}", detail.code))
+                );
+            }
+        }
+        self.docker
+            .inspect_image(&archive.image_id)
+            .await
+            .context("inspect loaded test image")
     }
 }

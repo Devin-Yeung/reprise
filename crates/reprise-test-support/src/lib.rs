@@ -4,13 +4,12 @@
 //! [`DockerTestEnvironment::ensure_image`]. Use the returned image ID to configure
 //! the daemon on the same endpoint.
 //!
-//! API skeleton: methods currently panic; their docs describe intended behavior.
+//! Parallel callers may share an endpoint and image. Preparation never removes
+//! shared images; concurrent cache misses may each upload the same archive.
 
 mod archive;
 mod environment;
-mod error;
 mod image;
 
 pub use environment::DockerTestEnvironment;
-pub use error::{PreparationError, PreparationStage};
 pub use image::{ImagePreparation, PreparedImage};
