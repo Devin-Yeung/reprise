@@ -42,7 +42,7 @@ jobs:
         with:
           components: clippy, rustfmt
 
-      - name: Check the workspace and run image preparation
+      - name: Check the workspace and run image preparation smoke test
         run: |
           cargo fmt --all -- --check
           cargo clippy --locked --workspace --all-targets -- -D warnings

@@ -9,9 +9,9 @@ capability.
 let environment = DockerTestEnvironment::connect(
     socket_path,
     Duration::from_secs(120),
-).await?;
+).await;
 
-let prepared = environment.ensure_image(archive_path).await?;
+let prepared = environment.ensure_image(archive_path).await;
 let image_id = prepared.image.id.as_deref()
     .expect("preparation returns an image ID");
 
@@ -20,8 +20,9 @@ let image_id = prepared.image.id.as_deref()
 
 The socket is an explicit Unix path; Docker contexts and `DOCKER_HOST` are not
 consulted. A single `tokio::time::timeout` bounds each preparation,
-including archive reading and Docker calls. Errors use `anyhow` context with
-the underlying Docker or filesystem error; there is no phase/error framework.
+including archive reading and Docker calls. As test fixture helpers, connection
+and preparation panic with `expect` or assertions on failure, so test callers
+do not need to propagate setup errors.
 
 ## Archive and sharing contract
 
@@ -52,12 +53,11 @@ socket; no network Docker listener or socket tunnel is needed on the runner.
 The gVisor release channel is intentionally floating and its version is logged.
 TODO: pin a known-good gVisor package once the runtime compatibility baseline is established.
 
-The single happy-path scenario starts four consumers together, requires at least
-one actual upload, checks subsequent cache hits and a shared immutable image ID,
-then runs `/bin/memory-state start` in each consumer's own runsc container. It
-joins all consumers and removes only their containers, leaving shared images
-alone. This checks image preparation and runtime usability, not checkpoint/restore.
-The endpoint must initially lack this image to exercise upload.
+The smoke test uploads the image and inspects its immutable ID through the same
+Docker socket using a separate client. Start with an endpoint without that image
+so the test exercises upload. It does not create or start containers; runtime
+execution belongs to the daemon tests. The runsc configuration is available for
+those future tests but is not required by image preparation itself.
 
 To run against a prepared Linux endpoint:
 
@@ -70,5 +70,5 @@ REPRISE_TEST_IMAGE_ARCHIVE=/tmp/reprise-test-image.tar \
 ```
 
 Ordinary workspace tests compile but ignore this scenario because it needs
-external Linux/runsc infrastructure. Missing setup fails an explicitly requested
+a saved image and an external Docker endpoint. Missing setup fails an explicitly requested
 run; it never silently skips or substitutes another runtime.

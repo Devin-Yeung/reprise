@@ -1,7 +1,6 @@
 use std::path::Path;
 use std::time::Duration;
 
-use anyhow::{Context, Result, ensure};
 use bollard::Docker;
 use bollard::errors::Error;
 use bollard::models::{ImageInspect, Platform};
@@ -20,28 +19,33 @@ pub struct DockerTestEnvironment {
 impl DockerTestEnvironment {
     /// Connect to an explicit Docker Unix socket and negotiate the Engine version.
     /// `timeout` bounds connection and each subsequent preparation as a whole.
-    pub async fn connect(socket: impl AsRef<Path>, timeout: Duration) -> Result<Self> {
-        ensure!(!timeout.is_zero(), "timeout must be nonzero");
-        let socket = socket
-            .as_ref()
-            .to_str()
-            .context("socket path must be UTF-8")?;
-        ensure!(
+    ///
+    /// # Panics
+    /// Panics if settings are invalid, Docker cannot connect, or connection times out.
+    pub async fn connect(socket: impl AsRef<Path>, timeout: Duration) -> Self {
+        assert!(!timeout.is_zero(), "timeout must be nonzero");
+
+        let socket = socket.as_ref().to_str().expect("socket path must be UTF-8");
+        assert!(
             !socket.is_empty() && !socket.contains("://"),
             "expected a Unix socket path, not a URI"
         );
+
         let docker = tokio::time::timeout(timeout, async {
             Docker::connect_with_unix(
                 socket,
                 timeout.as_secs().saturating_add(1),
                 bollard::API_DEFAULT_VERSION,
-            )?
+            )
+            .expect("connect to test Docker socket")
             .negotiate_version()
             .await
         })
         .await
-        .context("Docker connection timed out")??;
-        Ok(Self { docker, timeout })
+        .expect("Docker connection timed out")
+        .expect("negotiate Docker version");
+
+        Self { docker, timeout }
     }
 
     /// Prepare a single-image, uncompressed Docker save tar matching the host.
@@ -51,23 +55,32 @@ impl DockerTestEnvironment {
     /// which also imports archive tags. Concurrent misses may each upload.
     /// Timeout bounds the caller's wait; blocking reads or Docker-side loading
     /// may continue after cancellation. No shared images are removed.
-    pub async fn ensure_image(&self, archive: impl AsRef<Path>) -> Result<PreparedImage> {
+    ///
+    /// # Panics
+    /// Panics if the archive or host is unsupported, preparation fails, or it times out.
+    pub async fn ensure_image(&self, archive: impl AsRef<Path>) -> PreparedImage {
         tokio::time::timeout(self.timeout, async {
-            let archive = ValidatedArchive::read(archive.as_ref()).await?;
-            self.verify_host_platform(&archive.platform).await?;
-            let (image, preparation) = match self.find_image(&archive.image_id).await? {
+            let archive = ValidatedArchive::read(archive.as_ref()).await;
+            self.verify_host_platform(&archive.platform).await;
+
+            let (image, preparation) = match self.find_image(&archive.image_id).await {
                 Some(image) => (image, ImagePreparation::Cached),
-                None => (self.load_image(&archive).await?, ImagePreparation::Loaded),
+                None => {
+                    let image = self.load_image(&archive).await;
+                    (image, ImagePreparation::Loaded)
+                }
             };
-            archive.verify_image(&image)?;
-            Ok(PreparedImage { image, preparation })
+            archive.verify_image(&image);
+
+            PreparedImage { image, preparation }
         })
         .await
-        .context("image preparation timed out")?
+        .expect("image preparation timed out")
     }
 
-    async fn verify_host_platform(&self, platform: &Platform) -> Result<()> {
-        let host = self.docker.info().await.context("inspect Docker host")?;
+    async fn verify_host_platform(&self, platform: &Platform) {
+        let host = self.docker.info().await.expect("inspect Docker host");
+
         let architecture = host
             .architecture
             .as_deref()
@@ -76,47 +89,46 @@ impl DockerTestEnvironment {
                 "aarch64" => "arm64",
                 other => other,
             });
-        ensure!(
-            host.os_type == platform.os && architecture == platform.architecture.as_deref(),
-            "archive platform {:?} does not match Docker host {:?}/{:?}",
-            platform,
-            host.os_type,
-            architecture
+
+        assert_eq!(
+            host.os_type, platform.os,
+            "archive OS must match Docker host"
         );
-        Ok(())
+        assert_eq!(
+            architecture,
+            platform.architecture.as_deref(),
+            "archive architecture must match Docker host"
+        );
     }
 
-    async fn find_image(&self, image_id: &str) -> Result<Option<ImageInspect>> {
+    async fn find_image(&self, image_id: &str) -> Option<ImageInspect> {
         // Absence is a cache miss only before loading, not after it.
         match self.docker.inspect_image(image_id).await {
-            Ok(image) => Ok(Some(image)),
+            Ok(image) => Some(image),
             Err(Error::DockerResponseServerError {
                 status_code: 404, ..
-            }) => Ok(None),
-            Err(error) => Err(error).context("look up test image"),
+            }) => None,
+            Err(error) => panic!("look up test image: {error}"),
         }
     }
 
-    async fn load_image(&self, archive: &ValidatedArchive) -> Result<ImageInspect> {
+    async fn load_image(&self, archive: &ValidatedArchive) -> ImageInspect {
         let mut response = self.docker.import_image_stream(
             ImportImageOptions::default(),
-            archive.upload_stream()?,
+            archive.upload_stream(),
             None,
         );
+
         // HTTP success is not load success: consume late stream failures too.
-        while let Some(message) = response.try_next().await.context("load test image")? {
+        while let Some(message) = response.try_next().await.expect("load test image") {
             if let Some(detail) = message.error_detail {
-                anyhow::bail!(
-                    "load test image: {}",
-                    detail
-                        .message
-                        .unwrap_or_else(|| format!("Docker error {:?}", detail.code))
-                );
+                panic!("Docker rejected test image: {detail:?}");
             }
         }
+
         self.docker
             .inspect_image(&archive.image_id)
             .await
-            .context("inspect loaded test image")
+            .expect("inspect loaded test image")
     }
 }
