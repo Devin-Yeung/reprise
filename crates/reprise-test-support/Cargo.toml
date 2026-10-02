@@ -1,0 +1,15 @@
+[package]
+name = "reprise-test-support"
+description = "Test infrastructure contracts for preparing pinned images on an explicit Docker endpoint."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+bollard = { version = "0.21.1", default-features = false, features = ["pipe"] }
+
+[lints]
+workspace = true
