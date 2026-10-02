@@ -42,15 +42,10 @@ async fn background_http_state_survives_suspend_resume() -> Result<()> {
         .docker(
             DockerConfig::builder()
                 .socket(socket)
-                .runtime("runsc".to_owned())
+                .runtime("runsc")
                 .build(),
         )
-        .default_template(
-            FixedTemplate::builder()
-                .id("default".to_owned())
-                .image(image)
-                .build(),
-        )
+        .default_template(FixedTemplate::builder().id("default").image(image).build())
         .build();
 
     // Wiring point: start the concrete daemon with config, pass its service and

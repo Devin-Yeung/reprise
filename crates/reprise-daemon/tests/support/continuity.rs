@@ -68,7 +68,7 @@ pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &Sandbox
     );
 
     let resume = service
-        .resume(sandbox, Resume::default())
+        .resume(sandbox, Resume::builder().build())
         .await
         .map_err(|e| anyhow!("resume: {e:?}"))?;
     let resumed = wait_operation(service, resume).await?;

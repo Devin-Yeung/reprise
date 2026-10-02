@@ -80,8 +80,20 @@ pub struct Suspend {
 /// Activation uses the committed snapshot when one exists and cold-boots from
 /// the template otherwise; the caller does not choose. On an already
 /// `Resuming` sandbox, the in-flight operation is joined.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+///
+/// Construct with `Resume::builder()`. The idempotency key defaults to `None`.
+///
+/// ```
+/// use reprise_api::Resume;
+///
+/// let request = Resume::builder().build();
+///
+/// assert!(request.idempotency_key.is_none());
+/// ```
+#[derive(Clone, Debug, Default, PartialEq, Eq, typed_builder::TypedBuilder)]
 pub struct Resume {
+    /// Optional deduplication key. Defaults to `None`.
+    #[builder(default, setter(strip_option, into))]
     pub idempotency_key: Option<IdempotencyKey>,
 }
 
@@ -89,9 +101,25 @@ pub struct Resume {
 ///
 /// On success the sandbox is terminal, its runtime is gone and its snapshots
 /// are garbage collected. Reachable from any state.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+///
+/// Construct with `Destroy::builder()`. `force` defaults to `false`, so
+/// in-flight executions drain. The idempotency key defaults to `None`.
+///
+/// ```
+/// use reprise_api::Destroy;
+///
+/// let request = Destroy::builder().force(true).build();
+///
+/// assert!(request.force);
+/// assert!(request.idempotency_key.is_none());
+/// ```
+#[derive(Clone, Debug, Default, PartialEq, Eq, typed_builder::TypedBuilder)]
 pub struct Destroy {
     /// Cancel in-flight executions instead of waiting for them to drain.
+    /// Defaults to `false`.
+    #[builder(default)]
     pub force: bool,
+    /// Optional deduplication key. Defaults to `None`.
+    #[builder(default, setter(strip_option, into))]
     pub idempotency_key: Option<IdempotencyKey>,
 }

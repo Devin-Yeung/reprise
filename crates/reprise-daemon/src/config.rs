@@ -15,6 +15,7 @@ pub struct DaemonConfig {
     /// authentication policy; the first implementation should reject it.
     pub listen: SocketAddr,
     /// SQLite database on the daemon host.
+    #[builder(setter(into))]
     pub state_db: PathBuf,
     /// Storage for verified, committed snapshot artifacts.
     pub snapshots: SnapshotStorageConfig,
@@ -31,8 +32,10 @@ pub struct DaemonConfig {
 #[derive(Clone, Debug, TypedBuilder)]
 pub struct DockerConfig {
     /// Unix socket on the daemon host.
+    #[builder(setter(into))]
     pub socket: PathBuf,
     /// Required sandbox runtime, normally `runsc`. Never fall back to runc.
+    #[builder(setter(into))]
     pub runtime: String,
 }
 
@@ -41,8 +44,10 @@ pub struct DockerConfig {
 pub struct FixedTemplate {
     /// External template identifier. Conversion to the domain TemplateId and
     /// validation are deferred; unknown identifiers must not be silently ignored.
+    #[builder(setter(into))]
     pub id: String,
     /// Docker image reference. Pin a digest for reproducible continuity tests.
+    #[builder(setter(into))]
     pub image: String,
 }
 
@@ -53,5 +58,6 @@ pub struct SnapshotStorageConfig {
     ///
     /// This is not a remote Docker checkpoint directory. Importing remote
     /// artifacts requires a separate transfer mechanism that is not yet defined.
+    #[builder(setter(into))]
     pub committed_dir: PathBuf,
 }

@@ -72,10 +72,28 @@ pub struct SandboxInfo {
 ///
 /// Registration only: no runtime starts, no image is pulled and no snapshot is
 /// taken. The template's image is resolved lazily on first activation.
-#[derive(Clone, Debug, PartialEq, Eq)]
+///
+/// Construct with `CreateSandbox::builder()`. The template is required. Limits
+/// default to unset CPU and memory; the idle timeout and idempotency key
+/// default to `None`.
+///
+/// ```compile_fail
+/// use reprise_api::CreateSandbox;
+///
+/// // A template must be supplied before building.
+/// let _request = CreateSandbox::builder().build();
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq, typed_builder::TypedBuilder)]
 pub struct CreateSandbox {
     pub template: TemplateId,
+    /// Requested resource limits. Defaults to unset CPU and memory.
+    #[builder(default)]
     pub limits: Limits,
+    /// Auto-suspend a sandbox with no running work after this interval, when
+    /// set. A policy hint, not a guarantee. Defaults to `None`.
+    #[builder(default, setter(strip_option, into))]
     pub idle_timeout: Option<Duration>,
+    /// Optional deduplication key. Defaults to `None`.
+    #[builder(default, setter(strip_option, into))]
     pub idempotency_key: Option<IdempotencyKey>,
 }

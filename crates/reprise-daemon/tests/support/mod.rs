@@ -4,7 +4,7 @@ mod lifecycle;
 mod memory_state;
 
 use anyhow::{Context, Result, anyhow, ensure};
-use reprise_api::{CreateSandbox, Destroy, Limits, SandboxService, TemplateId};
+use reprise_api::{CreateSandbox, Destroy, SandboxService, TemplateId};
 use std::time::Duration;
 use tokio::time::timeout;
 
@@ -29,12 +29,7 @@ pub async fn verify<S: SandboxService>(service: &S, template: TemplateId) -> Res
     );
 
     let sandbox = service
-        .create(CreateSandbox {
-            template,
-            limits: Limits::default(),
-            idle_timeout: None,
-            idempotency_key: None,
-        })
+        .create(CreateSandbox::builder().template(template).build())
         .await
         .map_err(|e| anyhow!("create: {e:?}"))?;
 
@@ -44,13 +39,7 @@ pub async fn verify<S: SandboxService>(service: &S, template: TemplateId) -> Res
 
     let cleanup = timeout(Duration::from_secs(30), async {
         let operation = service
-            .destroy(
-                &sandbox.id,
-                Destroy {
-                    force: true,
-                    idempotency_key: None,
-                },
-            )
+            .destroy(&sandbox.id, Destroy::builder().force(true).build())
             .await
             .map_err(|e| anyhow!("destroy: {e:?}"))?;
         wait_operation(service, operation).await?;

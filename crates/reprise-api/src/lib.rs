@@ -41,7 +41,10 @@ pub use execution::{
 pub use files::{Digest, FileContent, FileVersion, ReadFile, WriteFile};
 pub use id::{ExecutionId, IdempotencyKey, OperationId, SandboxId, SnapshotId, TemplateId};
 pub use operation::{
-    Destroy, Operation, OperationKind, OperationResult, OperationState, Resume, Suspend,
+    Destroy, DestroyBuilder, Operation, OperationKind, OperationResult, OperationState, Resume,
+    ResumeBuilder, Suspend,
 };
-pub use sandbox::{CreateSandbox, Limits, Sandbox, SandboxInfo, SandboxState};
+pub use sandbox::{
+    CreateSandbox, CreateSandboxBuilder, Limits, Sandbox, SandboxInfo, SandboxState,
+};
 pub use service::SandboxService;
