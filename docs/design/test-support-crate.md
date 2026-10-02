@@ -21,20 +21,20 @@ let image_id = prepared.image.id.as_deref()
 The socket is an explicit Unix path; Docker contexts and `DOCKER_HOST` are not
 consulted. A single `tokio::time::timeout` bounds each preparation,
 including archive reading and Docker calls. As test fixture helpers, connection
-and preparation panic with `expect` or assertions on failure, so test callers
+and preparation panic on I/O or Docker failures, so test callers
 do not need to propagate setup errors.
 
 ## Archive and sharing contract
 
-Use an uncompressed Docker save tar containing exactly one Linux amd64/arm64
-image without a variant. Multiple tags for that image are supported. The config
-is read without extraction and its original bytes determine the image ID.
-Manifest/config reads are bounded; ambiguous references and duplicate entries
-are rejected. Docker validates layers during upload.
+Supply an uncompressed Docker save tar containing exactly one image suitable
+for the test host. Multiple tags for that image are supported. The config is
+read without extraction and its original bytes determine the image ID. These
+are trusted test fixtures: the helper does not revalidate archive structure or
+platform compatibility. Docker reports load failures during upload.
 
 The opened file is retained for upload. Test fixtures must stay immutable during
 preparation; concurrent-write detection and file locking are intentionally omitted.
-Blocking validation runs outside the async executor. Timeout bounds the caller's
+Blocking archive reading runs outside the async executor. Timeout bounds the caller's
 wait but cannot stop an already running blocking read or Docker-side load.
 
 Parallel callers can share the environment, archive and image. Every call owns

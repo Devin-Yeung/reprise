@@ -9,13 +9,13 @@ pub enum ImagePreparation {
     Loaded,
 }
 
-/// An image whose ID and platform match the archive and Docker host.
+/// A test image inspected by its immutable archive ID.
 ///
 /// `image.id` contains the full `sha256:` digest of the archive's exact config
 /// bytes. Use it to configure the daemon on the same Docker endpoint.
 #[derive(Clone, Debug)]
 pub struct PreparedImage {
-    /// Docker's inspected response, verified against the local archive.
+    /// Docker's response to an inspection by image ID.
     pub image: ImageInspect,
     pub preparation: ImagePreparation,
 }
