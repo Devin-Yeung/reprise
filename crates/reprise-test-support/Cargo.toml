@@ -1,0 +1,26 @@
+[package]
+name = "reprise-test-support"
+description = "Test infrastructure for preparing pinned images on an explicit Docker endpoint."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+bollard = { version = "0.21.1", default-features = false, features = ["pipe"] }
+
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tar = "0.4"
+tokio = { version = "1", features = ["fs", "rt", "time"] }
+tokio-util = { version = "0.7", features = ["io"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros"] }
+
+[lints]
+workspace = true
