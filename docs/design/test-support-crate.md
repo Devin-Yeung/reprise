@@ -6,38 +6,41 @@ Docker endpoint. Image preparation is fixture setup, not evidence of checkpoint
 capability.
 
 ```rust
-let environment = DockerTestEnvironment::connect(
-    socket_path,
-    Duration::from_secs(120),
-).await;
+let endpoint = DockerEndpoint::connect(socket_path, Duration::from_secs(120))
+    .await
+    .expect("connect to test Docker");
 
-let prepared = environment.ensure_image(archive_path).await;
-let image_id = prepared.image.id.as_deref()
-    .expect("preparation returns an image ID");
+let prepared = endpoint
+    .ensure_image(archive_path)
+    .await
+    .expect("prepare test image");
+let image_id = prepared.id.as_str();
 
 // Configure FixedTemplate.image with image_id on the same endpoint.
 ```
 
-The socket is an explicit Unix path; Docker contexts and `DOCKER_HOST` are not
-consulted. A single `tokio::time::timeout` bounds each preparation,
-including archive reading and Docker calls. As test fixture helpers, connection
-and preparation panic on I/O or Docker failures, so test callers
-do not need to propagate setup errors.
+`socket_path` is an explicit Unix path string, not a `unix://` URI. Docker
+contexts and `DOCKER_HOST` are not consulted. Connection and preparation return
+`PrepareError`; tests use `expect` or `?` at the call site. A single
+`tokio::time::timeout` bounds `connect` and each `ensure_image`, including
+archive reading and Docker calls. That deadline stops the caller's wait only.
+A blocking archive read or an engine-side load may continue after
+`PrepareTimeout`.
 
 ## Archive and sharing contract
 
 Supply an uncompressed Docker save tar containing exactly one image suitable
-for the test host. Multiple tags for that image are supported. The config is
-read without extraction and its original bytes determine the image ID. These
-are trusted test fixtures: the helper does not revalidate archive structure or
-platform compatibility. Docker reports load failures during upload.
+for the test host. Zero or several images is `ArchiveError::NotSingleImage`.
+Multiple tags for that one image are supported. The config is read without
+extraction and its original bytes determine the image ID. The helper does not
+check platform compatibility or layer integrity. Docker reports load failures
+during upload.
 
 The opened file is retained for upload. Test fixtures must stay immutable during
 preparation; concurrent-write detection and file locking are intentionally omitted.
-Blocking archive reading runs outside the async executor. Timeout bounds the caller's
-wait but cannot stop an already running blocking read or Docker-side load.
+Blocking archive reading runs outside the async executor.
 
-Parallel callers can share the environment, archive and image. Every call owns
+Parallel callers can share the endpoint, archive and image. Every call owns
 its descriptor and timeout. Concurrent cache misses may each upload identical
 content; loading is idempotent by image ID. Preparation imports archive tags but
 never deletes or retags shared images. Tests should use the returned ID and
