@@ -69,9 +69,8 @@ To run against a prepared Linux endpoint:
 gzip --decompress --stdout result-test-image > /tmp/reprise-test-image.tar
 REPRISE_DOCKER_SOCKET=/var/run/docker.sock \
 REPRISE_TEST_IMAGE_ARCHIVE=/tmp/reprise-test-image.tar \
-  cargo test -p reprise-test-support --test image_preparation -- --ignored --nocapture
+  cargo test -p reprise-test-support --test image_preparation -- --nocapture
 ```
 
-Ordinary workspace tests compile but ignore this scenario because it needs
-a saved image and an external Docker endpoint. Missing setup fails an explicitly requested
-run; it never silently skips or substitutes another runtime.
+When either variable is unset, the test returns without contacting Docker. With
+both set, a workspace `cargo test` runs the upload.

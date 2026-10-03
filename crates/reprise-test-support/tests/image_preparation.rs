@@ -1,15 +1,20 @@
 //! Upload a saved image and confirm it exists through the same Docker socket.
+//!
+//! Returns without contacting Docker when `REPRISE_DOCKER_SOCKET` or
+//! `REPRISE_TEST_IMAGE_ARCHIVE` is unset.
 use std::time::Duration;
 
 use bollard::Docker;
 use reprise_test_support::{DockerEndpoint, ImagePreparation};
 
 #[tokio::test]
-#[ignore = "requires a saved test image and a Docker endpoint without that image"]
 async fn uploaded_image_is_visible_through_docker_socket() {
-    let socket = std::env::var("REPRISE_DOCKER_SOCKET").expect("REPRISE_DOCKER_SOCKET");
-    let archive =
-        std::env::var_os("REPRISE_TEST_IMAGE_ARCHIVE").expect("REPRISE_TEST_IMAGE_ARCHIVE");
+    let Ok(socket) = std::env::var("REPRISE_DOCKER_SOCKET") else {
+        return;
+    };
+    let Some(archive) = std::env::var_os("REPRISE_TEST_IMAGE_ARCHIVE") else {
+        return;
+    };
 
     let endpoint = DockerEndpoint::connect(&socket, Duration::from_secs(120))
         .await
