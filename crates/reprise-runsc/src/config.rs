@@ -5,10 +5,13 @@ use typed_builder::TypedBuilder;
 /// Location of runsc and its runtime state, independent of OCI bundle paths.
 /// Paths are passed without filesystem preparation; callers should use absolute
 /// paths so changing the host working directory cannot change their meaning.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder)]
+#[builder]
 pub struct RunscConfig {
+    #[builder(setter(into))]
     pub executable: PathBuf,
     /// runsc's `--root`, not the container rootfs or a bundle directory.
+    #[builder(setter(into))]
     pub state_root: PathBuf,
     pub options: GlobalOptions,
 }

@@ -12,8 +12,10 @@
 //! Command methods and container-ID validation are unimplemented and panic.
 //! Types can be reviewed and examples compiled on macOS; executing runsc needs
 //! Linux and the privileges required by the chosen runsc configuration.
-//! TODO: implement argv generation and execution after snapshot tests, then
-//! validate the lifecycle against a pinned runsc on Linux.
+//! Argument-contract tests and expected snapshots are wired to a private builder
+//! stub and deliberately fail until it is implemented.
+//! TODO: implement argv generation against those tests, then subprocess execution
+//! and lifecycle validation against a pinned runsc on Linux.
 //! TODO: add command timeouts/cancellation before using this interface for a
 //! supervised service; blocking commands currently have no deadline contract.
 //!
@@ -27,6 +29,7 @@
 )]
 
 mod client;
+mod command;
 mod config;
 mod error;
 mod options;
