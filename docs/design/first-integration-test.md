@@ -5,7 +5,7 @@ Explicit execution currently fails at fixture startup; it does not contact Docke
 
 ## Run
 
-Build and load the Nix-defined [Reprise test image](test-image.md) on the target
+Pull the published, digest-pinned [Reprise test image](test-image.md) on the target
 Docker endpoint first. Establish an external SSH Unix-socket tunnel if Docker
 is remote, then:
 
@@ -17,8 +17,8 @@ REPRISE_TEST_IMAGE=sha256:<loaded-image-id> \
 
 The socket variable is a Unix socket **path**, not a Docker context, SSH URL, or
 `unix://` URI. Both variables are required; there is no default Docker endpoint
-or fallback image. Use the loaded image ID (or its Nix-derived tag), not a
-mutable base-image tag. The test is ignored in ordinary workspace runs because
+or fallback image. Use the local image ID obtained from the digest-pinned
+registry reference, not a mutable tag. The test is ignored in ordinary workspace runs because
 it requires external infrastructure.
 
 ## Seam and workload
@@ -50,8 +50,8 @@ The scenario in `crates/reprise-daemon/tests/support/mod.rs` takes a real
 HTTP requests use `memory-state state` and `memory-state mutate VALUE` through
 `SandboxService::execute`, with output collected via `execution_events`.
 No inline source, interpreter, published ports, runtime package installation,
-mounted source files, or workspace writes are required. Image construction and
-loading are explicit preparation steps outside the scenario.
+mounted source files, or workspace writes are required. Image publication and
+pulling are separate from the scenario.
 
 ## What remains red
 
