@@ -4,7 +4,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::copy::ClosureCopier;
-use crate::error::IoResultExt;
 use crate::{Error, Rootfs};
 
 /// Store objects listed by a Nix closure artifact for a workload.
@@ -19,8 +18,7 @@ pub struct NixClosure {
 impl NixClosure {
     /// Reads the given `store-paths` file as absolute store paths, one per line.
     pub fn load(manifest_path: &Path) -> Result<Self, Error> {
-        let manifest =
-            fs::read_to_string(manifest_path).context("read closure manifest", manifest_path)?;
+        let manifest = fs::read_to_string(manifest_path)?;
         let store_paths = manifest.lines().map(PathBuf::from).collect();
         Ok(Self { store_paths })
     }
@@ -41,11 +39,10 @@ impl NixClosure {
     pub fn materialize(&self, destination: &Path) -> Result<Rootfs, Error> {
         self.ensure_destination_outside_closure(destination)?;
 
-        fs::create_dir(destination).context("create rootfs", destination)?;
-        let rootfs_path = fs::canonicalize(destination).context("resolve rootfs", destination)?;
+        fs::create_dir(destination)?;
+        let rootfs_path = fs::canonicalize(destination)?;
         let destination_store = rootfs_path.join("nix/store");
-        fs::create_dir_all(&destination_store)
-            .context("create rootfs store", &destination_store)?;
+        fs::create_dir_all(&destination_store)?;
 
         // One copier spans the closure so hard links across store objects retain
         // their identity, while every copied file is independent of the host store.
@@ -70,16 +67,16 @@ impl NixClosure {
             .parent()
             .filter(|path| !path.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
-        let parent = fs::canonicalize(parent).context("resolve destination parent", parent)?;
+        let parent = fs::canonicalize(parent)?;
         for path in &self.store_paths {
-            let metadata = fs::symlink_metadata(path).context("inspect closure object", path)?;
+            let metadata = fs::symlink_metadata(path)?;
             // A root object may itself be a dangling symlink. Only directories
             // can contain the destination; resolving links here would reject
             // valid contents that the copier deliberately preserves verbatim.
             if !metadata.is_dir() {
                 continue;
             }
-            let source = fs::canonicalize(path).context("resolve closure object", path)?;
+            let source = fs::canonicalize(path)?;
             if parent.starts_with(&source) {
                 return Err(Error::DestinationInsideClosure(source));
             }

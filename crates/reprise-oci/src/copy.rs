@@ -7,7 +7,6 @@ use std::os::unix::fs::{MetadataExt, symlink};
 use std::path::{Path, PathBuf};
 
 use crate::Error;
-use crate::error::IoResultExt;
 
 /// Copies the objects of one closure, retaining hard links between them.
 ///
@@ -32,7 +31,7 @@ impl ClosureCopier {
     pub(crate) fn copy(&mut self, source: &Path, destination: &Path) -> Result<(), Error> {
         // Never follow links: absolute links address the sandbox's filesystem,
         // and dangling links are valid closure contents too.
-        let metadata = fs::symlink_metadata(source).context("inspect closure entry", source)?;
+        let metadata = fs::symlink_metadata(source)?;
         let file_type = metadata.file_type();
 
         match file_type {
@@ -54,22 +53,23 @@ impl ClosureCopier {
         destination: &Path,
         metadata: &Metadata,
     ) -> Result<(), Error> {
-        fs::create_dir(destination).context("create directory", destination)?;
+        fs::create_dir(destination)?;
 
-        for entry in fs::read_dir(source).context("read directory", source)? {
-            let entry = entry.context("read directory entry", source)?;
+        for entry in fs::read_dir(source)? {
+            let entry = entry?;
             self.copy(&entry.path(), &destination.join(entry.file_name()))?;
         }
         // Store directories are often read-only. Set their final permissions
         // only after children exist, so an unprivileged caller can populate them.
-        fs::set_permissions(destination, metadata.permissions())
-            .context("set directory permissions", destination)
+        fs::set_permissions(destination, metadata.permissions())?;
+        Ok(())
     }
 }
 
 fn copy_symlink(source: &Path, destination: &Path) -> Result<(), Error> {
-    let target = fs::read_link(source).context("read symbolic link", source)?;
-    symlink(target, destination).context("create symbolic link", destination)
+    let target = fs::read_link(source)?;
+    symlink(target, destination)?;
+    Ok(())
 }
 
 /// Remembers where each already-copied source inode landed, so a later hard link
@@ -88,9 +88,10 @@ impl HardLinks {
     ) -> Result<(), Error> {
         let identity = (metadata.dev(), metadata.ino());
         if let Some(existing) = self.first_copy.get(&identity) {
-            return fs::hard_link(existing, destination).context("create hard link", destination);
+            fs::hard_link(existing, destination)?;
+            return Ok(());
         }
-        fs::copy(source, destination).context("copy file", destination)?;
+        fs::copy(source, destination)?;
         // A file with a single link cannot be referenced again, so there is
         // nothing to remember.
         if metadata.nlink() > 1 {
