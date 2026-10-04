@@ -17,7 +17,7 @@ pub struct NixClosure {
 
 impl NixClosure {
     /// Reads the given `store-paths` file as absolute store paths, one per line.
-    pub fn load(manifest_path: &Path) -> Result<Self, Error> {
+    pub fn load<P: AsRef<Path>>(manifest_path: &P) -> Result<Self, Error> {
         let manifest = fs::read_to_string(manifest_path)?;
         let store_paths = manifest.lines().map(PathBuf::from).collect();
         Ok(Self { store_paths })
