@@ -94,9 +94,7 @@ async fn prepare(docker: &Docker, reference: &str) -> Result<PreparedImage, Prep
     let id = image
         .id
         .filter(|id| valid_id(id))
-        .ok_or(PrepareError::InvalidImage {
-            reason: "inspect did not return a valid image ID".into(),
-        })?;
+        .ok_or(PrepareError::InvalidImage)?;
     Ok(PreparedImage { id, preparation })
 }
 
@@ -109,8 +107,8 @@ pub enum PrepareError {
     Timeout,
     /// Inspect, pull transport, or a streamed registry error from Bollard.
     Engine(DockerError),
-    /// Inspect succeeded but did not yield a usable Docker image ID.
-    InvalidImage { reason: String },
+    /// Inspect succeeded but did not return a valid Docker image ID.
+    InvalidImage,
 }
 
 impl From<DockerError> for PrepareError {
@@ -127,7 +125,7 @@ impl fmt::Display for PrepareError {
             }
             Self::Timeout => f.write_str("timed out preparing image"),
             Self::Engine(error) => write!(f, "Docker engine: {error}"),
-            Self::InvalidImage { reason } => write!(f, "invalid prepared image: {reason}"),
+            Self::InvalidImage => f.write_str("inspect did not return a valid image ID"),
         }
     }
 }

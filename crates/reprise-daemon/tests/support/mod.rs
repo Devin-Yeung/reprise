@@ -11,6 +11,9 @@ use tokio::time::timeout;
 use continuity::continuity;
 use lifecycle::wait_operation;
 
+const SCENARIO_TIMEOUT: Duration = Duration::from_secs(300);
+const CLEANUP_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// `assert_eq!` that returns an error instead of panicking, so `verify` still
 /// tears the sandbox down.
 macro_rules! ensure_eq {
@@ -50,9 +53,9 @@ pub async fn verify<S: SandboxService>(service: &S, template: TemplateId) -> Res
 
     // Return errors rather than panic so teardown is attempted on failed
     // assertions and timeout. Only this test's SandboxId is ever destroyed.
-    let outcome = timeout(Duration::from_secs(300), continuity(service, &sandbox.id)).await;
+    let outcome = timeout(SCENARIO_TIMEOUT, continuity(service, &sandbox.id)).await;
 
-    let cleanup = timeout(Duration::from_secs(30), async {
+    let cleanup = timeout(CLEANUP_TIMEOUT, async {
         let operation = service
             .destroy(&sandbox.id, Destroy::builder().force(true).build())
             .await

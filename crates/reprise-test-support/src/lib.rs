@@ -17,6 +17,10 @@ use bollard::Docker;
 
 pub use image::{ImagePreparation, PrepareError, PreparedImage, ensure_image};
 
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
+const PREPARE_TIMEOUT: Duration = Duration::from_secs(120);
+
 /// A connected Engine and an immutable fixture image prepared on that endpoint.
 ///
 /// Consumers can clone the client and reuse the image. Startup never removes or
@@ -49,16 +53,16 @@ impl TestFixture {
         // A request deadline also bounds workload calls and cleanup performed
         // through this client. Stream consumers still need a whole-operation
         // deadline, since each message can otherwise restart the request clock.
-        let docker = tokio::time::timeout(Duration::from_secs(30), async {
+        let docker = tokio::time::timeout(CONNECT_TIMEOUT, async {
             Docker::connect_with_host(&host)?
-                .with_timeout(Duration::from_secs(120))
+                .with_timeout(REQUEST_TIMEOUT)
                 .negotiate_version()
                 .await
         })
         .await
         .context("Docker connection deadline elapsed")?
         .with_context(|| format!("connect to Docker at {host}"))?;
-        let image = ensure_image(&docker, &reference, Duration::from_secs(120))
+        let image = ensure_image(&docker, &reference, PREPARE_TIMEOUT)
             .await
             .with_context(|| format!("prepare fixture {reference} on {host}"))?;
         Ok(Self {

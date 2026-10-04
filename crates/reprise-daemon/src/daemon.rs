@@ -8,9 +8,9 @@ use crate::config::DaemonConfig;
 
 /// Lifecycle of the process-local daemon host.
 ///
-/// A future implementation owns the HTTP listener, lifecycle tasks, SQLite
+/// An implementation owns the HTTP listener, lifecycle tasks, SQLite
 /// writer, and Docker connection. This is a hosting interface, not a runtime
-/// backend registry or a replacement for SandboxService.
+/// backend registry or a replacement for [`SandboxService`].
 pub trait Daemon: Sized + Send {
     /// The single public sandbox interface hosted by this daemon.
     type Service: SandboxService;

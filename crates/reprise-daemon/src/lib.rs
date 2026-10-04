@@ -4,7 +4,7 @@
 //! HTTP, persist state, or create snapshots. The binary exposes CLI help and
 //! rejects startup until those implementations exist.
 //!
-//! Callers continue to use reprise_api::SandboxService. Hosting configuration
+//! Callers continue to use [`reprise_api::SandboxService`]. Hosting configuration
 //! is separate from sandbox requests; callers cannot choose arbitrary Docker
 //! runtimes, mounts, or privileged settings.
 

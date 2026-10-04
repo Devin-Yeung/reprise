@@ -6,6 +6,9 @@ use std::time::Duration;
 use tokio::time::{sleep, timeout};
 
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
+const POLL_INTERVAL: Duration = Duration::from_millis(50);
+const EVENT_PAGE_LIMIT: u32 = 256;
+const MAX_OUTPUT_BYTES: usize = 64 * 1024;
 
 // Strict test primitive: no retries, partial output, or unknown outcomes.
 // Return stdout only after exit code zero and all retained events are drained.
@@ -32,7 +35,7 @@ pub(super) async fn execute_successfully<S: SandboxService>(
 
         loop {
             let page = service
-                .execution_events(&execution.id, cursor, 256)
+                .execution_events(&execution.id, cursor, EVENT_PAGE_LIMIT)
                 .await
                 .context("execution_events")?;
             let empty = page.events.is_empty();
@@ -49,7 +52,7 @@ pub(super) async fn execute_successfully<S: SandboxService>(
             }
 
             ensure!(
-                stdout.len() + stderr.len() <= 65536,
+                stdout.len() + stderr.len() <= MAX_OUTPUT_BYTES,
                 "unexpectedly large execution output"
             );
             cursor = page.next;
@@ -84,7 +87,7 @@ pub(super) async fn execute_successfully<S: SandboxService>(
                 ),
             }
 
-            sleep(Duration::from_millis(50)).await;
+            sleep(POLL_INTERVAL).await;
         }
     })
     .await

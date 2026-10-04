@@ -1,5 +1,5 @@
 //! Opt-in acceptance test using the published test image. Only fixture setup
-//! knows the Docker host. The scenario uses SandboxService exclusively, not
+//! knows the Docker host. The scenario uses `SandboxService` exclusively, not
 //! Docker commands or HTTP against the daemon. No fake service is supplied
 //! while startup is missing.
 

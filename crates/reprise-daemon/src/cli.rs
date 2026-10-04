@@ -11,11 +11,12 @@ use reprise_api::TemplateId;
 
 use crate::config::{DaemonConfig, DockerConfig, FixedTemplate, SnapshotStorageConfig};
 
-/// Start a single-node Reprise daemon (implementation pending).
+/// Start a single-node Reprise daemon.
 #[derive(Clone, Debug, Parser)]
 #[command(name = "reprised", version, about)]
 pub struct Cli {
-    /// HTTP bind address; initial deployments use loopback and SSH forwarding.
+    /// HTTP bind address. Requests are unauthenticated, so use loopback and SSH
+    /// forwarding.
     #[arg(long, default_value = "127.0.0.1:8080")]
     pub listen: SocketAddr,
 
@@ -35,7 +36,7 @@ pub struct Cli {
     #[arg(long, default_value = "runsc")]
     pub runtime: String,
 
-    /// Only template identifier accepted by the initial fixed-image backend.
+    /// The only template identifier accepted; it names the `--image` environment.
     #[arg(long, default_value = "default")]
     pub template_id: TemplateId,
 

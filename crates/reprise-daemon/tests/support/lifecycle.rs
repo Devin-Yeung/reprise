@@ -4,6 +4,7 @@ use std::time::Duration;
 use tokio::time::{sleep, timeout};
 
 const LIFECYCLE_TIMEOUT: Duration = Duration::from_secs(120);
+const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 pub(super) async fn wait_operation<S: SandboxService>(
     service: &S,
@@ -18,7 +19,7 @@ pub(super) async fn wait_operation<S: SandboxService>(
                 }
                 OperationState::Pending | OperationState::Running => {}
             }
-            sleep(Duration::from_millis(100)).await;
+            sleep(POLL_INTERVAL).await;
             operation = service
                 .get_operation(&operation.id)
                 .await
