@@ -1,6 +1,7 @@
 ---
-status: draft
+status: retired
 date: 2026-10-04
+superseded-by: snapshot-runtime.md
 ---
 
 # First integration test: in-memory HTTP state continuity

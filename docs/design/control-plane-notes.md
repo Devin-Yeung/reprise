@@ -1,6 +1,7 @@
 ---
-status: draft
+status: retired
 date: 2026-10-04
+superseded-by: snapshot-runtime.md
 ---
 
 # Control plane: upstream model, load-bearing invariants, Reprise simplification
