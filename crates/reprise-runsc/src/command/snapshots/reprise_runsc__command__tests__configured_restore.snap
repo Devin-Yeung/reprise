@@ -1,0 +1,57 @@
+---
+source: crates/reprise-runsc/src/command/tests.rs
+expression: |
+  format!("{input}\n\nInvocation:\n{actual:#?}")
+---
+RunscConfig:
+RunscConfig {
+    executable: "/opt/gvisor/runsc",
+    state_root: "/var/lib/reprise/runsc",
+    options: GlobalOptions {
+        platform: Some(
+            Kvm,
+        ),
+        network: None,
+        overlay: None,
+        file_access_mounts: None,
+        directfs: None,
+    },
+}
+
+Command:
+Restore {
+    id: "benchmark-1",
+    options: RestoreOptions {
+        create: CreateOptions {
+            bundle: "/var/lib/reprise/bundle",
+            pid_file: None,
+            io: ContainerIo {
+                stdout: Inherit,
+                stderr: Inherit,
+            },
+        },
+        image_path: "/var/lib/reprise/checkpoint",
+        background: true,
+        direct_io: true,
+    },
+}
+
+Invocation:
+Invocation {
+    executable: "/opt/gvisor/runsc",
+    operation: Restore,
+    args: [
+        "--root",
+        "/var/lib/reprise/runsc",
+        "--platform=kvm",
+        "restore",
+        "--bundle",
+        "/var/lib/reprise/bundle",
+        "--image-path",
+        "/var/lib/reprise/checkpoint",
+        "--detach",
+        "--background",
+        "--direct",
+        "benchmark-1",
+    ],
+}
