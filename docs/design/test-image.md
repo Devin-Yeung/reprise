@@ -1,6 +1,7 @@
 ---
-status: implemented
+status: retired
 date: 2026-10-04
+superseded-by: snapshot-runtime.md
 ---
 
 # Reprise test image
