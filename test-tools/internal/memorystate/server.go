@@ -6,20 +6,15 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 )
 
-const (
-	address      = "127.0.0.1:8765"
-	maxBodyBytes = 4 << 10
-	readinessEnv = "REPRISE_MEMORY_STATE_READY"
-)
+const maxBodyBytes = 4 << 10
 
-// Serve runs the workload HTTP server in the foreground until it exits.
-func Serve() error {
+// Serve runs the workload HTTP server on address until it exits.
+func Serve(address string) error {
 	store, err := newStateStore()
 	if err != nil {
 		return err
@@ -30,18 +25,6 @@ func Serve() error {
 		return err
 	}
 	defer listener.Close()
-
-	if os.Getenv(readinessEnv) == "1" {
-		ready := os.NewFile(3, "readiness")
-		if ready == nil {
-			return errors.New("readiness pipe is unavailable")
-		}
-		err := json.NewEncoder(ready).Encode(store.snapshot())
-		_ = ready.Close()
-		if err != nil {
-			return err
-		}
-	}
 
 	server := &http.Server{
 		Handler:           newHandler(store),
