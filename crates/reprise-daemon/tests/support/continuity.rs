@@ -1,41 +1,48 @@
 use anyhow::{Context, Result, bail, ensure};
 use reprise_api::{OperationResult, Resume, SandboxId, SandboxService, SandboxState, Suspend};
+use reprise_test_support::memory_state::MemoryState;
 use uuid::Uuid;
 
-use super::{lifecycle::wait_operation, memory_state::MemoryWorkload};
+use super::{ensure_eq, lifecycle::wait_operation, memory_state::MemoryWorkload};
 
 pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &SandboxId) -> Result<()> {
     let workload = MemoryWorkload::new(service, sandbox);
     let initial = workload.start().await?;
 
-    ensure!(initial.has_valid_boot_nonce(), "invalid startup nonce");
     ensure!(
-        initial.value.is_none() && initial.revision == 0,
-        "service did not start empty"
+        initial.has_valid_boot_nonce(),
+        "invalid startup nonce: {initial:?}"
     );
+    let empty = MemoryState {
+        boot_nonce: initial.boot_nonce.clone(),
+        value: None,
+        revision: 0,
+    };
+    ensure_eq!(initial, empty, "service did not start empty");
 
     // Generated AFTER startup, never part of the template or launcher.
     let value = Uuid::new_v4().to_string();
     let before = workload.mutate(&value).await?;
 
-    ensure!(
-        before.boot_nonce == initial.boot_nonce,
-        "service restarted before checkpoint"
-    );
-    ensure!(
-        before.value.as_deref() == Some(value.as_str()) && before.revision == 1,
-        "first mutation was not applied"
-    );
+    // A changed nonce means the service restarted before checkpoint.
+    let expected = MemoryState {
+        value: Some(value),
+        revision: 1,
+        ..empty.clone()
+    };
+    ensure_eq!(before, expected, "first mutation was not applied");
 
     let running = service.inspect(sandbox).await.context("inspect")?;
 
-    ensure!(
-        running.sandbox.state == SandboxState::Running,
+    ensure_eq!(
+        running.sandbox.state,
+        SandboxState::Running,
         "sandbox is not running"
     );
     ensure!(
         running.active_executions.is_empty(),
-        "launcher or request still holds a pin"
+        "launcher or request still holds a pin: {:?}",
+        running.active_executions
     );
 
     let suspend = service
@@ -55,12 +62,14 @@ pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &Sandbox
         .await
         .context("inspect suspended")?;
 
-    ensure!(
-        info.sandbox.state == SandboxState::Suspended,
+    ensure_eq!(
+        info.sandbox.state,
+        SandboxState::Suspended,
         "suspend did not release the runtime"
     );
-    ensure!(
-        info.sandbox.latest_snapshot.as_ref() == Some(&snapshot),
+    ensure_eq!(
+        info.sandbox.latest_snapshot,
+        Some(snapshot.clone()),
         "snapshot was not committed"
     );
 
@@ -75,10 +84,11 @@ pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &Sandbox
             snapshot: Some(restored),
             generation,
         } => {
-            ensure!(restored == snapshot, "restored a different snapshot");
+            ensure_eq!(restored, snapshot, "restored a different snapshot");
             ensure!(
                 generation > running.sandbox.generation,
-                "activation generation did not advance"
+                "activation generation did not advance: {generation} <= {}",
+                running.sandbox.generation
             );
         }
         other => bail!("resume cold-booted or did not report restoration: {other:?}"),
@@ -87,22 +97,21 @@ pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &Sandbox
     // No launcher or mutation replay between checkpoint and this read.
     let after = workload.read().await?;
 
-    ensure!(
-        after == before,
-        "memory continuity lost: before={before:?}, after={after:?}"
-    );
+    ensure_eq!(after, before, "memory continuity lost");
 
     // An additional mutation demonstrates a live server, not merely a cached
     // response from before suspend.
     let next_value = Uuid::new_v4().to_string();
     let next = workload.mutate(&next_value).await?;
 
-    ensure!(
-        next.boot_nonce == initial.boot_nonce,
-        "restored service restarted"
-    );
-    ensure!(
-        next.value.as_deref() == Some(next_value.as_str()) && next.revision == 2,
+    let expected = MemoryState {
+        value: Some(next_value),
+        revision: 2,
+        ..empty
+    };
+    ensure_eq!(
+        next,
+        expected,
         "restored server did not accept a fresh mutation"
     );
 

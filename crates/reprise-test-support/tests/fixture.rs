@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
 use bollard::Docker;
 use bollard::models::{ContainerCreateBody, HostConfig};
 use bollard::query_parameters::{
@@ -25,11 +25,44 @@ async fn fixture_workloads_are_isolated_under_runsc() -> Result<()> {
         run_workload(&fixture.docker, &fixture.image.id, "alpha"),
         run_workload(&fixture.docker, &fixture.image.id, "bravo"),
     );
-    ensure!(first? != second?, "isolated workloads reused a boot nonce");
+    let (first, second) = (first?, second?);
+
+    assert_memory_state_contract(&first, "alpha");
+    assert_memory_state_contract(&second, "bravo");
+    assert_ne!(
+        first[0].boot_nonce, second[0].boot_nonce,
+        "isolated workloads reused a boot nonce"
+    );
     Ok(())
 }
 
-async fn run_workload(docker: &Docker, image_id: &str, value: &str) -> Result<String> {
+fn assert_memory_state_contract(states: &[MemoryState; 3], value: &str) {
+    let [start, mutated, current] = states;
+    assert!(
+        start.has_valid_boot_nonce(),
+        "invalid boot nonce: {start:?}"
+    );
+    let fresh = MemoryState {
+        boot_nonce: start.boot_nonce.clone(),
+        value: None,
+        revision: 0,
+    };
+    assert_eq!(start, &fresh, "workload did not start fresh");
+    let expected = MemoryState {
+        value: Some(value.to_owned()),
+        revision: 1,
+        ..fresh
+    };
+    assert_eq!(
+        mutated, &expected,
+        "mutation was not applied by the same server"
+    );
+    assert_eq!(current, mutated, "state read did not retain the mutation");
+}
+
+/// Run start, mutate and state in a fresh container, returning their outputs
+/// in that order. The container is removed before this returns.
+async fn run_workload(docker: &Docker, image_id: &str, value: &str) -> Result<[MemoryState; 3]> {
     let container = docker.create_container(
         None::<CreateContainerOptions>,
         ContainerCreateBody {
@@ -91,26 +124,7 @@ async fn run_workload(docker: &Docker, image_id: &str, value: &str) -> Result<St
         .lines()
         .map(serde_json::from_str)
         .collect::<Result<_, _>>()?;
-    ensure!(
-        states.len() == 3,
-        "expected start/mutate/state output: {output}"
-    );
-    let [start, mutated, current] = states.as_slice() else {
-        unreachable!()
-    };
-    ensure!(
-        start.value.is_none() && start.revision == 0,
-        "workload did not start fresh"
-    );
-    ensure!(start.has_valid_boot_nonce(), "invalid boot nonce");
-    ensure!(
-        mutated.boot_nonce == start.boot_nonce,
-        "mutation changed boot identity"
-    );
-    ensure!(
-        mutated.value.as_deref() == Some(value) && mutated.revision == 1,
-        "mutation was not retained"
-    );
-    ensure!(current == mutated, "state read did not retain the mutation");
-    Ok(start.boot_nonce.clone())
+    states
+        .try_into()
+        .map_err(|_| anyhow!("expected start/mutate/state output: {output}"))
 }

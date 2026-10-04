@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use anyhow::{Result, ensure};
+use anyhow::Result;
 use reprise_test_support::{ImagePreparation, PrepareError, TestFixture, ensure_image};
 
 const DEADLINE: Duration = Duration::from_secs(120);
@@ -20,12 +20,13 @@ async fn registry_reference_is_shared_by_parallel_consumers() -> Result<()> {
         ensure_image(&fixture.docker, &fixture.reference, DEADLINE),
     );
     for prepared in [first?, second?] {
-        ensure!(
-            prepared.id == fixture.image.id,
+        assert_eq!(
+            prepared.id, fixture.image.id,
             "consumers resolved different image IDs"
         );
-        ensure!(
-            prepared.preparation == ImagePreparation::Cached,
+        assert_eq!(
+            prepared.preparation,
+            ImagePreparation::Cached,
             "reference was not cached"
         );
     }
@@ -42,7 +43,7 @@ async fn nonexistent_registry_digest_fails_preparation() -> Result<()> {
     let error = ensure_image(&fixture.docker, &missing, DEADLINE)
         .await
         .expect_err("an absent registry digest must not resolve to a fallback image");
-    ensure!(
+    assert!(
         matches!(error, PrepareError::Engine(_)),
         "expected an Engine/registry rejection, got {error}"
     );

@@ -11,6 +11,21 @@ use tokio::time::timeout;
 use continuity::continuity;
 use lifecycle::wait_operation;
 
+/// `assert_eq!` that returns an error instead of panicking, so `verify` still
+/// tears the sandbox down.
+macro_rules! ensure_eq {
+    ($left:expr, $right:expr, $($message:tt)+) => {
+        match (&$left, &$right) {
+            (left, right) => anyhow::ensure!(
+                left == right,
+                "{}\n  left: {left:?}\n right: {right:?}",
+                format_args!($($message)+),
+            ),
+        }
+    };
+}
+use ensure_eq;
+
 // This generic scenario is deliberately compiled before a concrete daemon
 // exists. Remove the expectation when the fixture calls it.
 #[expect(
