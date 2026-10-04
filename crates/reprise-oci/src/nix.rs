@@ -53,7 +53,7 @@ impl NixClosure {
                 .expect("store paths in the manifest name store objects");
             copier.copy(store_path, &destination_store.join(name))?;
         }
-        Ok(Rootfs::prepared(rootfs_path))
+        Ok(Rootfs { path: rootfs_path })
     }
 
     /// Rejects a destination inside any closure object, before it is created.

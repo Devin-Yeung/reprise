@@ -9,6 +9,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+oci-spec = "0.10.0"
 thiserror.workspace = true
 
 [lints]
