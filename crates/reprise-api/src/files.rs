@@ -3,9 +3,12 @@
 //! The workspace is the only managed file surface. Paths resolve inside it;
 //! host paths and mounts are not caller-controlled.
 
-/// A content digest of a file version.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Digest(String);
+use crate::id::string_id;
+
+string_id! {
+    /// A content digest of a file version.
+    Digest
+}
 
 /// Read a workspace file.
 #[derive(Clone, Debug, PartialEq, Eq)]

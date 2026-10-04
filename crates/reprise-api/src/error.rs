@@ -29,7 +29,7 @@ pub enum Error {
 
     /// A snapshot does not match the runtime or configuration. HTTP 412, not
     /// retryable.
-    #[error("snapshot {snapshot:?} is incompatible: {reason}")]
+    #[error("snapshot {snapshot} is incompatible: {reason}")]
     SnapshotIncompatible {
         snapshot: SnapshotId,
         reason: String,
