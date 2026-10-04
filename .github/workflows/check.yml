@@ -36,6 +36,19 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.95.0
         with:
           components: clippy
+      - name: Install runsc
+        env:
+          GVISOR_RELEASE: release-20260928.0
+        run: |
+          # Keep all sidecar binaries with runsc, as required by this release.
+          base="https://github.com/google/gvisor/releases/download/$GVISOR_RELEASE"
+          curl --fail --location --retry 3 "$base/gvisor-x86_64.tar.zstd" --output gvisor-x86_64.tar.zstd
+          curl --fail --location --retry 3 "$base/SHA512SUMS" --output SHA512SUMS
+          sha512sum --check --ignore-missing SHA512SUMS
+          sudo tar --zstd -xf gvisor-x86_64.tar.zstd -C /usr/local/bin
+          sudo /usr/local/bin/runsc install
+          sudo systemctl reload docker
+          docker info --format '{{json .Runtimes}}' | jq -e 'has("runsc")'
       - run: cargo clippy --locked --workspace --all-targets --features integration-tests -- -D warnings
       - name: Run real Docker integration tests
         run: cargo test --locked --workspace --all-targets --features integration-tests -- --nocapture

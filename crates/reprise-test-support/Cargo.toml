@@ -16,6 +16,10 @@ integration-tests = []
 name = "registry"
 required-features = ["integration-tests"]
 
+[[test]]
+name = "fixture"
+required-features = ["integration-tests"]
+
 [dependencies]
 anyhow = "1"
 bollard.workspace = true
