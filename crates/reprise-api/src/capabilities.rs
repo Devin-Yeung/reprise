@@ -1,28 +1,41 @@
 //! What the runtime has actually proven it can do.
 //!
 //! These values come from a startup probe, not from the presence of a binary.
-//! A false capability is refused with
+//! A missing capability is refused with
 //! [`Error::UnsupportedCapability`](crate::Error::UnsupportedCapability); it is
 //! never silently degraded. In particular, a runtime that cannot checkpoint or
 //! restore must not cold-boot and report success.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+
+/// One ability a runtime may prove during the startup probe.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Capability {
+    /// A suspended sandbox can be restored into the same container.
+    SameContainerRestore,
+    /// Process memory and kernel state can be checkpointed and restored.
+    ProcessCheckpoint,
+    /// Workspace writes are captured by a snapshot.
+    WorkspaceSnapshot,
+    /// A running execution can be canceled.
+    ExecCancel,
+    /// Execution output can be streamed with resumable cursors.
+    OutputStream,
+}
 
 /// The probed abilities of the configured runtime.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Capabilities {
-    /// A suspended sandbox can be restored into the same container.
-    pub same_container_restore: bool,
-    /// Process memory and kernel state can be checkpointed and restored.
-    pub process_checkpoint: bool,
-    /// Workspace writes are captured by a snapshot.
-    pub workspace_snapshot: bool,
-    /// A running execution can be canceled.
-    pub exec_cancel: bool,
-    /// Execution output can be streamed with resumable cursors.
-    pub output_stream: bool,
+    /// Capabilities the probe proved. Anything absent is unsupported.
+    pub supported: BTreeSet<Capability>,
     /// The runtime the probe ran against, when known.
     pub runtime: Option<RuntimeInfo>,
+}
+
+impl Capabilities {
+    pub fn supports(&self, capability: Capability) -> bool {
+        self.supported.contains(&capability)
+    }
 }
 
 /// The runtime the probe ran against.

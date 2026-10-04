@@ -18,16 +18,17 @@ pub enum OperationKind {
 }
 
 /// Progress of a lifecycle operation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OperationState {
     /// Accepted, not yet started.
     Pending,
     /// In progress.
     Running,
-    /// Completed; the result is on the operation.
-    Succeeded,
-    /// Did not complete; the error is on the operation.
-    Failed,
+    /// Completed. The result variant matches the operation's
+    /// [`OperationKind`].
+    Succeeded(OperationResult),
+    /// Did not complete.
+    Failed(Error),
 }
 
 /// The outcome of a successful operation.
@@ -54,8 +55,6 @@ pub struct Operation {
     pub state: OperationState,
     /// A human-readable label for the current step, for progress reporting.
     pub step: Option<String>,
-    pub result: Option<OperationResult>,
-    pub error: Option<Error>,
     pub created_at: SystemTime,
     pub finished_at: Option<SystemTime>,
 }

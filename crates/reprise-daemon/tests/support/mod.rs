@@ -4,7 +4,7 @@ mod lifecycle;
 mod memory_state;
 
 use anyhow::{Context, Result, ensure};
-use reprise_api::{CreateSandbox, Destroy, SandboxService, TemplateId};
+use reprise_api::{Capability, CreateSandbox, Destroy, SandboxService, TemplateId};
 use std::time::Duration;
 use tokio::time::timeout;
 
@@ -20,11 +20,11 @@ use lifecycle::wait_operation;
 pub async fn verify<S: SandboxService>(service: &S, template: TemplateId) -> Result<()> {
     let capabilities = service.capabilities().await;
     ensure!(
-        capabilities.process_checkpoint,
+        capabilities.supports(Capability::ProcessCheckpoint),
         "process checkpoint capability is unproven"
     );
     ensure!(
-        capabilities.same_container_restore,
+        capabilities.supports(Capability::SameContainerRestore),
         "same-container restore capability is unproven"
     );
 

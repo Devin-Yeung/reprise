@@ -47,8 +47,8 @@ pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &Sandbox
         .context("suspend")?;
     let suspended = wait_operation(service, suspend).await?;
 
-    let snapshot = match suspended.result {
-        Some(OperationResult::Suspend { snapshot }) => snapshot,
+    let snapshot = match suspended {
+        OperationResult::Suspend { snapshot } => snapshot,
         other => bail!("suspend did not commit a snapshot: {other:?}"),
     };
 
@@ -73,11 +73,11 @@ pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &Sandbox
         .context("resume")?;
     let resumed = wait_operation(service, resume).await?;
 
-    match resumed.result {
-        Some(OperationResult::Resume {
+    match resumed {
+        OperationResult::Resume {
             snapshot: Some(restored),
             generation,
-        }) => {
+        } => {
             ensure!(restored == snapshot, "restored a different snapshot");
             ensure!(
                 generation > running.sandbox.generation,

@@ -33,7 +33,7 @@ pub mod operation;
 pub mod sandbox;
 pub mod service;
 
-pub use capabilities::{Capabilities, RuntimeInfo};
+pub use capabilities::{Capabilities, Capability, RuntimeInfo};
 pub use error::Error;
 pub use execution::{
     Channel, EventPage, Execute, ExecuteBuilder, Execution, ExecutionEvent, ExecutionState,

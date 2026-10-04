@@ -8,24 +8,28 @@ use crate::id::{ExecutionId, IdempotencyKey, SandboxId};
 
 /// The state of one command execution.
 ///
-/// `Exited` is the normal terminal state and carries an exit code that may be
-/// non-zero. `Failed` means the service could not run or could not observe the
-/// command, and pairs with [`Execution::outcome_unknown`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// `Exited` is the normal terminal state. `Failed` means the service could not
+/// run or could not observe the command.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutionState {
     /// Recorded, not yet running. The sandbox may still be activating, or the
     /// execution may be waiting for admission.
     Accepted,
     /// Started inside the sandbox.
     Running,
-    /// The process exited. `exit_code` is set and may be non-zero.
-    Exited,
+    /// The process exited. A non-zero `code` is a result, not an [`Error`].
+    Exited { code: i32 },
     /// Cancellation ended the process, or a forced suspend did.
     Canceled,
     /// The command's own deadline ended it after TERM and KILL.
     TimedOut,
     /// The service could not run, or could not observe, the command.
-    Failed,
+    Failed {
+        error: Error,
+        /// The service cannot determine whether the command ran. Such an
+        /// execution is never retried automatically.
+        outcome_unknown: bool,
+    },
 }
 
 /// Which stream a chunk of output came from.
@@ -41,15 +45,8 @@ pub struct Execution {
     pub id: ExecutionId,
     pub sandbox: SandboxId,
     pub state: ExecutionState,
-    /// Set in [`ExecutionState::Exited`]. A non-zero value is a result, not an
-    /// [`Error`].
-    pub exit_code: Option<i32>,
     /// True once output hit its retention cap and older events were dropped.
     pub output_truncated: bool,
-    /// True when the service cannot determine whether the command ran. Such an
-    /// execution is never retried automatically.
-    pub outcome_unknown: bool,
-    pub error: Option<Error>,
     pub created_at: SystemTime,
     pub started_at: Option<SystemTime>,
     pub finished_at: Option<SystemTime>,
@@ -152,7 +149,6 @@ pub enum ExecutionEvent {
     Status {
         sequence: u64,
         state: ExecutionState,
-        exit_code: Option<i32>,
     },
     /// Output retention dropped older events; reading before this point is no
     /// longer possible.

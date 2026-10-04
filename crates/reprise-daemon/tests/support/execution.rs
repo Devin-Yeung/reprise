@@ -58,15 +58,15 @@ pub(super) async fn execute_successfully<S: SandboxService>(
                 .context("get_execution")?;
 
             ensure!(
-                !current.output_truncated && !current.outcome_unknown,
-                "execution output or outcome is incomplete: {current:?}"
+                !current.output_truncated,
+                "execution output is incomplete: {current:?}"
             );
 
             match current.state {
                 ExecutionState::Accepted | ExecutionState::Running => {}
-                ExecutionState::Exited => {
+                ExecutionState::Exited { code } => {
                     ensure!(
-                        current.exit_code == Some(0),
+                        code == 0,
                         "command failed: {current:?}; stderr={}",
                         String::from_utf8_lossy(&stderr)
                     );

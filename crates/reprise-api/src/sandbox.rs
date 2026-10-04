@@ -9,9 +9,9 @@ use crate::id::{ExecutionId, IdempotencyKey, OperationId, SandboxId, SnapshotId,
 ///
 /// `Suspended` and `Running` are the resting states. `Resuming` and
 /// `Suspending` are committed transitions in progress. `Failed` means the
-/// physical state could not be confirmed and always carries the last known good
-/// snapshot; it is never resumed into an unknown second instance. `Deleting` is
-/// teardown.
+/// physical state could not be confirmed; [`Sandbox::latest_snapshot`] keeps
+/// the last known good snapshot, and the sandbox is never resumed into an
+/// unknown second instance. `Deleting` is teardown.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SandboxState {
     /// No active instance. A resume activates from a committed snapshot, or
