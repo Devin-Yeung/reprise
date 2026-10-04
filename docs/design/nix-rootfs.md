@@ -10,12 +10,12 @@ instance must not duplicate those objects. `reprise-oci` reads a closure artifac
 and produces OCI filesystem configuration: a root reference and read-only bind
 mounts, retaining each object's original `/nix/store` path. It neither copies
 files nor performs mounts. See the public interface in
-[`NixClosure`](../../crates/reprise-oci/src/nix.rs) .
+[`NixClosure`](../../crates/reprise-oci/src/nix.rs).
 
 ## Ownership and layout
 
-The caller provides an existing shared base directory with the mount-point layout
-needed by the runtime. It may contain only a directory skeleton. Each instance
+The caller selects a shared base directory. `to_rootfs` creates it if missing;
+the caller supplies the mount-point layout needed by the runtime. It may contain only a directory skeleton. Each instance
 has its own bundle configuration and writable state, while the base and store
 objects are reused. Store objects are mounted individually rather than exposing
 the execution host's entire store.
@@ -39,9 +39,10 @@ The artifact producer supplies a complete runtime closure targeting the Linux
 architecture of the execution host. `store-paths` contains one direct absolute
 `/nix/store` object path per line. Metadata
 loading maps each listed path to a read-only bind mount without probing sources.
-The producer supplies valid paths and complete dependencies. `as_oci_root` exposes
-a default read-only root, and `as_oci_mounts` exposes mounts in manifest order.
-The caller selects and creates the base directory.
+The producer supplies valid paths and complete dependencies. `to_rootfs` returns
+a `NixBasedRootFS` holding the absolute base path and closure. `oci_root` returns
+the read-only root configuration, and `oci_mounts` returns mounts in manifest
+order. Neither conversion probes or copies store objects.
 
 The caller keeps the base and dependencies available and unchanged for all
 instances and saved snapshots, including retaining Nix GC roots. Reading the artifact does

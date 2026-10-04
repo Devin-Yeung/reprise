@@ -8,7 +8,6 @@
 
 use std::env;
 use std::error::Error;
-use std::fs;
 use std::path::PathBuf;
 
 use reprise_oci::nix::NixClosure;
@@ -20,9 +19,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let root: PathBuf = arguments.next().expect("expect base rootfs path").into();
 
     let closure = NixClosure::load(manifest)?;
-    fs::create_dir_all(&root)?;
-
-    let rootfs = closure.to_rootfs()?;
+    let rootfs = closure.to_rootfs(root)?;
     let fragment = serde_json::json!({
         "root": rootfs.oci_root(),
         "mounts": rootfs.oci_mounts(),
