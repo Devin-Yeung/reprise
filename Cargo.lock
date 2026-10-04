@@ -367,6 +367,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "reprise-runsc"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "reprise-runtime"
 version = "0.1.0"
 dependencies = [
