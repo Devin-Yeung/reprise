@@ -12,5 +12,8 @@ publish = false
 thiserror.workspace = true
 typed-builder = "0.23.2"
 
+[dev-dependencies]
+insta = "1.49.0"
+
 [lints]
 workspace = true
