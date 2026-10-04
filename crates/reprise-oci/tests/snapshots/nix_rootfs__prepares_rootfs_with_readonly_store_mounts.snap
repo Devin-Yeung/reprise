@@ -1,0 +1,39 @@
+---
+source: crates/reprise-oci/tests/nix_rootfs.rs
+expression: spec
+---
+{
+  "mounts": [
+    {
+      "destination": "/nix/store/AAA",
+      "options": [
+        "bind",
+        "ro"
+      ],
+      "source": "/nix/store/AAA",
+      "type": "bind"
+    },
+    {
+      "destination": "/nix/store/BBB",
+      "options": [
+        "bind",
+        "ro"
+      ],
+      "source": "/nix/store/BBB",
+      "type": "bind"
+    },
+    {
+      "destination": "/nix/store/CCC",
+      "options": [
+        "bind",
+        "ro"
+      ],
+      "source": "/nix/store/CCC",
+      "type": "bind"
+    }
+  ],
+  "root": {
+    "path": "[rootfs]",
+    "readonly": true
+  }
+}

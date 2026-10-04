@@ -14,8 +14,9 @@ files nor performs mounts. See the public interface in
 
 ## Ownership and layout
 
-The caller selects a shared base directory. `to_rootfs` creates it if missing;
-the caller supplies the mount-point layout needed by the runtime. It may contain only a directory skeleton. Each instance
+The caller selects a shared base directory. `to_rootfs` creates it and its
+`nix/store` directory if missing; the caller supplies individual mount points
+and other directories needed by the runtime. It may contain only a directory skeleton. Each instance
 has its own bundle configuration and writable state, while the base and store
 objects are reused. Store objects are mounted individually rather than exposing
 the execution host's entire store.

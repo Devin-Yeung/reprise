@@ -25,9 +25,11 @@ impl NixClosure {
     }
 
     /// Creates or reuses a shared base directory without copying store objects.
+    /// Prepares `nix/store` inside it; individual mount points and runtime
+    /// directories remain the caller's responsibility.
     /// The caller owns the directory and keeps it available for its containers.
     pub fn to_rootfs(&self, root: impl AsRef<Path>) -> Result<NixBasedRootFS, Error> {
-        fs::create_dir_all(&root)?;
+        fs::create_dir_all(root.as_ref().join("nix/store"))?;
         Ok(NixBasedRootFS {
             root: fs::canonicalize(root)?,
             closure: self.clone(),
