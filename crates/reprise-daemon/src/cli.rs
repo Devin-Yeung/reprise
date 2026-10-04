@@ -1,6 +1,7 @@
 //! Operator-facing command-line shape. No runtime is started by parsing it.
 //!
-//! Conversion into validated host configuration is intentionally deferred.
+//! `--docker-host` is passed unchanged to the Bollard connector
+//! at startup. Parsing CLI arguments does not contact Docker.
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -23,9 +24,9 @@ pub struct Cli {
     #[arg(long, default_value = "./snapshots")]
     pub snapshot_dir: PathBuf,
 
-    /// Local Docker socket or the local end of an external SSH socket tunnel.
-    #[arg(long, default_value = "/var/run/docker.sock")]
-    pub docker_socket: PathBuf,
+    /// Explicit Docker endpoint URI; interpreted by Bollard at startup.
+    #[arg(long, default_value = "unix:///var/run/docker.sock")]
+    pub docker_host: String,
 
     /// Required sandbox runtime; never silently replaced with runc.
     #[arg(long, default_value = "runsc")]

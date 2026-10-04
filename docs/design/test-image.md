@@ -44,7 +44,12 @@ Docker selects the image for the **server's** Linux architecture, not the
 developer's architecture. A Mac connected to an amd64 Docker host consumes
 the amd64 image.
 
-Until registry preparation is wired into the fixture, pull explicitly:
+`reprise-test-support::TestFixture::from_env` reads `DOCKER_HOST`,
+connects to Docker, and prepares the checked-in registry pin.
+`REPRISE_TEST_IMAGE_REF` can explicitly override that pin. See
+[test support](test-support-crate.md) for opt-in preparation and workload tests.
+The daemon acceptance fixture still requires an image already present on its
+endpoint. To prepare that image manually:
 
 ```sh
 # Use the real image@sha256:… reference from the publication summary.
@@ -54,12 +59,14 @@ docker --host "$docker_host" image pull "$image_ref"
 docker --host "$docker_host" image inspect --format '{{.Id}}' "$image_ref"
 ```
 
-The resulting Docker image ID is platform-specific and is not the index digest.
-Use it with the daemon on that same endpoint. No local Nix installation,
+Use the image ID reported by Engine inspect with the daemon on that same
+endpoint. Legacy image stores report the platform config digest; multi-platform
+stores can report the index digest instead. Do not derive the local ID from
+the registry reference. No local Nix installation,
 remote Nix builder, Dockerfile, archive upload, or build fallback is needed.
 
-The first pinned reference must come from a successful publication; do not
-check in a placeholder digest. Checkpoint/restore tests additionally require
+`crates/reprise-test-support/test-image.ref` records the published multi-architecture
+index used by the integration tests. Update it only from a successful publication. Checkpoint/restore tests additionally require
 a Linux host with the supported `runsc` configuration and capabilities.
 A runnable fixture image alone does not establish those capabilities.
 
