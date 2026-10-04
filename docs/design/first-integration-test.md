@@ -1,7 +1,13 @@
+---
+status: draft
+date: 2026-10-04
+---
+
 # First integration test: in-memory HTTP state continuity
 
-Status: acceptance scenario compiled, concrete daemon fixture not implemented.
-Explicit execution prepares the fixture image, then fails before creating a sandbox.
+The acceptance scenario compiles; the concrete daemon fixture is not
+implemented. Explicit execution prepares the fixture image, then fails before
+creating a sandbox.
 
 ## Run
 

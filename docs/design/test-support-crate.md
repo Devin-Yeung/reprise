@@ -1,65 +1,37 @@
+---
+status: implemented
+date: 2026-10-04
+---
+
 # Real Docker test fixtures
 
-Default `cargo test --workspace --all-targets` does not select Docker integration
-tests. Select them explicitly with the `integration-tests` Cargo feature:
+Docker integration tests are opt-in through the `integration-tests` Cargo
+feature; default `cargo test` never touches Docker.
 
-```sh
-export DOCKER_HOST=ssh://user@workstation
-cargo test --locked --workspace --all-targets --features integration-tests -- --nocapture
-```
+Code: `crates/reprise-test-support` (`TestFixture::from_env`, `ensure_image`),
+its `tests/registry.rs` and `tests/fixture.rs`, and the `docker-integration` job
+in `.github/workflows/check.yml`.
 
-`DOCKER_HOST` is an explicit URI interpreted by Bollard, for example
-`unix:///var/run/docker.sock`, `tcp://host:2375`, or `ssh://user@host`.
-No default socket or Docker context is selected. SSH requires local OpenSSH
-and remote `docker` on the non-interactive PATH; SSH URIs cannot select a remote
-socket path. TLS certificate discovery follows Bollard.
+## Decisions
 
-`test-image.ref` pins the published fixture by digest. `REPRISE_TEST_IMAGE_REF`
-can explicitly override that pin; an empty or malformed override fails startup.
+- **Fail, never skip.** Once selected, missing configuration, unreachable
+  Engines, registry errors, or a missing `runsc` fail the test. No mock or silent
+  skip stands in. The only ignored test is the unfinished daemon suspend/resume
+  scenario, and its marker tracks missing implementation, not infrastructure.
+- **Explicit endpoint.** `DOCKER_HOST` is required; no Docker context or default
+  socket is guessed, so a test never runs against an unintended Engine.
+- **One fixture owns setup.** Configuration, connection, and image preparation
+  live in `TestFixture`; there is no separate connection-wrapper crate.
+- **Pull only, by digest.** No build, archive import, retry, or alternative
+  image. Shared images are never deleted or retagged; each test cleans up only
+  its own containers.
 
-When selected, tests fail on missing configuration, connection errors, registry
-errors, or unavailable `runsc`. They do not silently skip or substitute a mock.
-The only ignored test is the unfinished daemon sandbox suspend/resume scenario.
+## Scope boundaries
 
-## Fixture interface
+`registry.rs` needs only a published image pin and any Engine. `fixture.rs`
+needs the [Reprise test image](test-image.md) on a Linux Engine with `runsc`; it
+proves workload isolation, not checkpoint/restore capability.
 
-```rust
-let fixture = reprise_test_support::TestFixture::from_env().await?;
-// Use fixture.docker and fixture.image.id on the same endpoint.
-// The future daemon fixture can also use fixture.host.
-```
-
-The fixture owns configuration, connection negotiation, and image preparation.
-There is no separate connection-wrapper crate. Connection has a 30-second
-deadline; image preparation has its own 120-second deadline.
-
-The image must be pinned by registry digest. Only an inspect 404 triggers a pull;
-other Engine failures and streamed pull errors fail preparation. There is no
-build, archive import, retry, or image fallback. Docker selects the server's
-platform. The local image ID comes from Engine inspect, not the registry digest.
-Concurrent consumers may each pull on a cache miss, and an Engine pull may
-continue after cancellation. Shared images are never deleted or retagged.
-
-## Real tests and CI
-
-`registry.rs` verifies shared cached preparation and rejection of a nonexistent
-registry digest against a real Engine. It can run with any published image pin:
-
-```sh
-cargo test -p reprise-test-support --features integration-tests --test registry -- --nocapture
-```
-
-`fixture.rs` needs the published Reprise test image on a Linux Engine with
-`runsc`. It starts two isolated workloads, checks the memory-state contract,
-and cleans up only its own containers, including after workload failure.
-It does not establish checkpoint/restore capability.
-
-The Check workflow keeps default Rust tests on Linux and Windows and adds a
-Linux Docker integration job. That job installs a pinned, checksum-verified
-gVisor release and enables `integration-tests`. The installation includes the
-sidecar binaries required by current [gVisor releases](https://gvisor.dev/docs/user_guide/install/).
-
-Both CI and development use the checked-in `test-image.ref`, taken from a
-successful image publication. The GHCR package is public, allowing anonymous
-pulls from fork PRs. Updating the pin is an explicit fixture upgrade, separate
-from business-test changes. Consumers never rebuild or import the image.
+CI installs a pinned, checksum-verified gVisor release with its sidecar binaries
+(required by current [gVisor releases](https://gvisor.dev/docs/user_guide/install/)).
+CI and development share the checked-in image pin.

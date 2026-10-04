@@ -1,6 +1,11 @@
+---
+status: draft
+date: 2026-10-04
+---
+
 # Control plane: upstream model, load-bearing invariants, Reprise simplification
 
-Status: discussion draft, not an accepted design. Sources inspected in the local
+A discussion draft, not an accepted design. Sources inspected in the local
 `substrate` checkout at `7317e083`; no runtime experiment performed. The
 `docs/learning/` notes in that checkout cover the same ground in Chinese.
 
