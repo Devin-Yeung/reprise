@@ -8,7 +8,7 @@ pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &Sandbox
     let workload = MemoryWorkload::new(service, sandbox);
     let initial = workload.start().await?;
 
-    ensure!(initial.boot_nonce.len() == 64, "invalid startup nonce");
+    ensure!(initial.has_valid_boot_nonce(), "invalid startup nonce");
     ensure!(
         initial.value.is_none() && initial.revision == 0,
         "service did not start empty"

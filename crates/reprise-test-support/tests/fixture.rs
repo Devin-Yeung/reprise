@@ -12,7 +12,7 @@ use bollard::query_parameters::{
 };
 use futures_util::TryStreamExt;
 use reprise_test_support::TestFixture;
-use serde::Deserialize;
+use reprise_test_support::memory_state::{MEMORY_STATE, MemoryState};
 
 const DEADLINE: Duration = Duration::from_secs(120);
 
@@ -29,13 +29,6 @@ async fn fixture_workloads_are_isolated_under_runsc() -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-struct MemoryState {
-    boot_nonce: String,
-    value: Option<String>,
-    revision: u64,
-}
-
 async fn run_workload(docker: &Docker, image_id: &str, value: &str) -> Result<String> {
     let container = docker.create_container(
         None::<CreateContainerOptions>,
@@ -43,7 +36,7 @@ async fn run_workload(docker: &Docker, image_id: &str, value: &str) -> Result<St
             image: Some(image_id.to_owned()),
             cmd: Some(vec![
                 "/bin/sh".into(), "-c".into(),
-                format!("/bin/memory-state start && /bin/memory-state mutate {value} && /bin/memory-state state"),
+                format!("{MEMORY_STATE} start && {MEMORY_STATE} mutate {value} && {MEMORY_STATE} state"),
             ]),
             host_config: Some(HostConfig { runtime: Some("runsc".into()), ..Default::default() }),
             ..Default::default()
@@ -109,14 +102,7 @@ async fn run_workload(docker: &Docker, image_id: &str, value: &str) -> Result<St
         start.value.is_none() && start.revision == 0,
         "workload did not start fresh"
     );
-    ensure!(
-        start.boot_nonce.len() == 64
-            && start
-                .boot_nonce
-                .bytes()
-                .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)),
-        "invalid boot nonce"
-    );
+    ensure!(start.has_valid_boot_nonce(), "invalid boot nonce");
     ensure!(
         mutated.boot_nonce == start.boot_nonce,
         "mutation changed boot identity"

@@ -9,6 +9,8 @@ use bollard::errors::Error as DockerError;
 use bollard::query_parameters::CreateImageOptionsBuilder;
 use futures_util::TryStreamExt;
 
+use crate::is_sha256_hex;
+
 /// Whether this call found the reference locally or completed a registry pull.
 /// Concurrent cache misses may each pull; this is not a cross-call lock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,12 +61,7 @@ pub async fn ensure_image(
 }
 
 fn valid_id(value: &str) -> bool {
-    value.strip_prefix("sha256:").is_some_and(|digest| {
-        digest.len() == 64
-            && digest
-                .bytes()
-                .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
-    })
+    value.strip_prefix("sha256:").is_some_and(is_sha256_hex)
 }
 
 async fn prepare(docker: &Docker, reference: &str) -> Result<PreparedImage, PrepareError> {

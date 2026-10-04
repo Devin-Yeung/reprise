@@ -1,18 +1,8 @@
 use anyhow::{Context, Result};
 use reprise_api::{SandboxId, SandboxService};
-use serde::Deserialize;
+use reprise_test_support::memory_state::{MEMORY_STATE, MemoryState};
 
 use super::execution::execute_successfully;
-
-// Built into reprise-test-image; no interpreter or inline source.
-const MEMORY_STATE: &str = "/bin/memory-state";
-
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-pub(super) struct MemoryState {
-    pub boot_nonce: String,
-    pub value: Option<String>,
-    pub revision: u64,
-}
 
 pub(super) struct MemoryWorkload<'a, S> {
     service: &'a S,

@@ -1,23 +1,20 @@
 # First integration test: in-memory HTTP state continuity
 
 Status: acceptance scenario compiled, concrete daemon fixture not implemented.
-Explicit execution currently fails at fixture startup; it does not contact Docker.
+Explicit execution prepares the fixture image, then fails before creating a sandbox.
 
 ## Run
 
-Pull the published, digest-pinned [Reprise test image](test-image.md) on the target
-Docker endpoint first, then:
-
 ```sh
 DOCKER_HOST=ssh://user@workstation \
-REPRISE_TEST_IMAGE=sha256:<loaded-image-id> \
   cargo test -p reprise-daemon --test checkpoint_restore -- --ignored --nocapture
 ```
 
-`DOCKER_HOST` is an explicit endpoint URI interpreted by Bollard. Both
-variables are required; no default endpoint or fallback image is selected.
-Use the local image ID obtained from the digest-pinned registry reference on
-that same endpoint. SSH requires local OpenSSH and remote `docker` on PATH.
+Setup uses `reprise_test_support::TestFixture`, so `DOCKER_HOST` and the
+optional `REPRISE_TEST_IMAGE_REF` override behave as in
+[the test-support fixtures](test-support-crate.md): the digest-pinned [Reprise
+test image](test-image.md) is pulled if absent and its endpoint-local image ID
+is passed to the daemon.
 
 This is the only ignored test: concrete daemon startup and sandbox suspend/resume
 are not implemented. Its ignore marker tracks that missing implementation,
@@ -27,7 +24,7 @@ the `integration-tests` feature and fail when configured infrastructure is unava
 ## Seam and workload
 
 The fixture will start the real daemon using the configured Docker host, a
-temporary local SQLite database and snapshot directory, and the preloaded
+temporary local SQLite database and snapshot directory, and the prepared
 `reprise-test-image`. The test image contains only test tools, not `reprised`.
 These host-side temporary directories are not container mounts. Remote
 checkpoint artifact transfer remains an implementation question; a forwarded

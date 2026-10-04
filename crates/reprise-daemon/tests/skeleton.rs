@@ -77,6 +77,20 @@ fn configuration_is_constructible_with_typed_builders() {
 }
 
 #[test]
+fn cli_converts_into_daemon_config() {
+    let cli = Cli::try_parse_from(["reprised", "--image", "alpine:3"]).unwrap();
+    let config = DaemonConfig::from(cli);
+
+    assert_eq!(config.listen, "127.0.0.1:8080".parse().unwrap());
+    assert_eq!(config.state_db.to_str(), Some("./reprise.db"));
+    assert_eq!(config.snapshots.committed_dir.to_str(), Some("./snapshots"));
+    assert_eq!(config.docker.host, "unix:///var/run/docker.sock");
+    assert_eq!(config.docker.runtime, "runsc");
+    assert_eq!(config.default_template.id.as_str(), "default");
+    assert_eq!(config.default_template.image, "alpine:3");
+}
+
+#[test]
 fn binary_refuses_unimplemented_startup() {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_reprised"))
         .args(["--image", "alpine:3"])

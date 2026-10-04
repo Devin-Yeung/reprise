@@ -781,7 +781,7 @@ dependencies = [
  "anyhow",
  "clap",
  "reprise-api",
- "serde",
+ "reprise-test-support",
  "serde_json",
  "tempfile",
  "tokio",

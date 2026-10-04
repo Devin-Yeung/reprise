@@ -9,6 +9,8 @@ use std::path::PathBuf;
 use clap::Parser;
 use reprise_api::TemplateId;
 
+use crate::config::{DaemonConfig, DockerConfig, FixedTemplate, SnapshotStorageConfig};
+
 /// Start a single-node Reprise daemon (implementation pending).
 #[derive(Clone, Debug, Parser)]
 #[command(name = "reprised", version, about)]
@@ -40,4 +42,30 @@ pub struct Cli {
     /// Fixed sandbox image; specify a digest for reproducible tests.
     #[arg(long)]
     pub image: String,
+}
+
+impl From<Cli> for DaemonConfig {
+    fn from(cli: Cli) -> Self {
+        DaemonConfig::builder()
+            .listen(cli.listen)
+            .state_db(cli.state_db)
+            .snapshots(
+                SnapshotStorageConfig::builder()
+                    .committed_dir(cli.snapshot_dir)
+                    .build(),
+            )
+            .docker(
+                DockerConfig::builder()
+                    .host(cli.docker_host)
+                    .runtime(cli.runtime)
+                    .build(),
+            )
+            .default_template(
+                FixedTemplate::builder()
+                    .id(cli.template_id)
+                    .image(cli.image)
+                    .build(),
+            )
+            .build()
+    }
 }

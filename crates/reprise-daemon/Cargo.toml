@@ -18,7 +18,7 @@ reprise-api.workspace = true
 
 [dev-dependencies]
 anyhow = "1"
-serde = { version = "1", features = ["derive"] }
+reprise-test-support.workspace = true
 serde_json = "1"
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt", "time"] }

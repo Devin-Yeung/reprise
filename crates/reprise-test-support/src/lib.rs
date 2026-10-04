@@ -8,6 +8,7 @@
 //! No Docker context, default socket, build, or alternative image is selected.
 
 mod image;
+pub mod memory_state;
 
 use std::time::Duration;
 
@@ -71,6 +72,14 @@ impl TestFixture {
 
 fn required_env(name: &str) -> Result<String> {
     let value = std::env::var(name).with_context(|| format!("set {name} for integration tests"))?;
-    ensure!(!value.trim().is_empty(), "{name} must not be empty");
-    Ok(value)
+    let value = value.trim();
+    ensure!(!value.is_empty(), "{name} must not be empty");
+    Ok(value.to_owned())
+}
+
+fn is_sha256_hex(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|c| matches!(c, b'0'..=b'9' | b'a'..=b'f'))
 }
