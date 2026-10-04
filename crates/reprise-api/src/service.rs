@@ -13,6 +13,9 @@ use crate::sandbox::{CreateSandbox, Sandbox, SandboxInfo};
 
 /// The only interface callers use.
 ///
+/// Every returned future is `Send`, so calls can be spawned onto a
+/// multi-threaded runtime. Implementations may write `async fn`.
+///
 /// # Contracts shared by every method
 ///
 /// - **Stable identity.** A [`SandboxId`] outlives every physical instance
@@ -29,15 +32,18 @@ use crate::sandbox::{CreateSandbox, Sandbox, SandboxInfo};
 ///   [`IdempotencyKey`](crate::IdempotencyKey); the same key with the same
 ///   payload returns the original resource, and the same key with a different
 ///   payload is [`Error::IdempotencyConflict`].
-#[allow(async_fn_in_trait)]
 pub trait SandboxService: Send + Sync {
     /// Register a sandbox and return it in
     /// [`Suspended`](crate::SandboxState::Suspended). No runtime starts.
-    async fn create(&self, request: CreateSandbox) -> Result<Sandbox, Error>;
+    fn create(&self, request: CreateSandbox)
+    -> impl Future<Output = Result<Sandbox, Error>> + Send;
 
     /// Return the sandbox and its live facts. This is the call a client polls
     /// when it is not observing an operation or an execution.
-    async fn inspect(&self, sandbox: &SandboxId) -> Result<SandboxInfo, Error>;
+    fn inspect(
+        &self,
+        sandbox: &SandboxId,
+    ) -> impl Future<Output = Result<SandboxInfo, Error>> + Send;
 
     /// Accept a command and return it in
     /// [`Accepted`](crate::ExecutionState::Accepted). It runs only once the
@@ -45,52 +51,80 @@ pub trait SandboxService: Send + Sync {
     /// through [`get_execution`](Self::get_execution) and
     /// [`execution_events`](Self::execution_events). A request that cannot be
     /// queued is refused with [`Error::CapacityExhausted`].
-    async fn execute(&self, sandbox: &SandboxId, request: Execute) -> Result<Execution, Error>;
+    fn execute(
+        &self,
+        sandbox: &SandboxId,
+        request: Execute,
+    ) -> impl Future<Output = Result<Execution, Error>> + Send;
 
     /// Request cancellation of an execution: TERM, then KILL after a grace
     /// period. Idempotent; canceling a terminal execution returns its existing
     /// terminal state.
-    async fn cancel(&self, execution: &ExecutionId) -> Result<Execution, Error>;
+    fn cancel(
+        &self,
+        execution: &ExecutionId,
+    ) -> impl Future<Output = Result<Execution, Error>> + Send;
 
     /// Read a workspace file, activating the sandbox if needed.
-    async fn read_file(&self, sandbox: &SandboxId, request: ReadFile)
-    -> Result<FileContent, Error>;
+    fn read_file(
+        &self,
+        sandbox: &SandboxId,
+        request: ReadFile,
+    ) -> impl Future<Output = Result<FileContent, Error>> + Send;
 
     /// Write a workspace file atomically, activating the sandbox if needed.
-    async fn write_file(
+    fn write_file(
         &self,
         sandbox: &SandboxId,
         request: WriteFile,
-    ) -> Result<FileVersion, Error>;
+    ) -> impl Future<Output = Result<FileVersion, Error>> + Send;
 
     /// Request checkpoint-and-release. Drains by default; fails
     /// [`Error::Busy`] and returns the sandbox to `Running` if drain cannot
     /// complete.
-    async fn suspend(&self, sandbox: &SandboxId, request: Suspend) -> Result<Operation, Error>;
+    fn suspend(
+        &self,
+        sandbox: &SandboxId,
+        request: Suspend,
+    ) -> impl Future<Output = Result<Operation, Error>> + Send;
 
     /// Request activation from the committed snapshot, or a cold boot when
     /// none exists. Joins an in-flight resume.
-    async fn resume(&self, sandbox: &SandboxId, request: Resume) -> Result<Operation, Error>;
+    fn resume(
+        &self,
+        sandbox: &SandboxId,
+        request: Resume,
+    ) -> impl Future<Output = Result<Operation, Error>> + Send;
 
     /// Request teardown, which also garbage-collects snapshots.
-    async fn destroy(&self, sandbox: &SandboxId, request: Destroy) -> Result<Operation, Error>;
+    fn destroy(
+        &self,
+        sandbox: &SandboxId,
+        request: Destroy,
+    ) -> impl Future<Output = Result<Operation, Error>> + Send;
 
     /// Read a lifecycle operation as of now.
-    async fn get_operation(&self, operation: &OperationId) -> Result<Operation, Error>;
+    fn get_operation(
+        &self,
+        operation: &OperationId,
+    ) -> impl Future<Output = Result<Operation, Error>> + Send;
 
     /// Read an execution as of now.
-    async fn get_execution(&self, execution: &ExecutionId) -> Result<Execution, Error>;
+    fn get_execution(
+        &self,
+        execution: &ExecutionId,
+    ) -> impl Future<Output = Result<Execution, Error>> + Send;
 
     /// Read events after `after`, up to `limit`. Poll with
     /// [`EventPage::next`]; a cursor older than the retained window is
     /// [`Error::CursorExpired`].
-    async fn execution_events(
+    fn execution_events(
         &self,
         execution: &ExecutionId,
         after: u64,
         limit: usize,
-    ) -> Result<EventPage, Error>;
+    ) -> impl Future<Output = Result<EventPage, Error>> + Send;
 
     /// Report what the configured runtime has proven it can do.
-    async fn capabilities(&self) -> Capabilities;
+    fn capabilities(&self) -> impl Future<Output = Capabilities> + Send;
 }

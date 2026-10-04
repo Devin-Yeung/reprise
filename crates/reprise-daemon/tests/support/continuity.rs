@@ -27,10 +27,7 @@ pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &Sandbox
         "first mutation was not applied"
     );
 
-    let running = service
-        .inspect(sandbox)
-        .await
-        .context("inspect")?;
+    let running = service.inspect(sandbox).await.context("inspect")?;
 
     ensure!(
         running.sandbox.state == SandboxState::Running,

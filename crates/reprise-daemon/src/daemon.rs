@@ -11,7 +11,6 @@ use crate::config::DaemonConfig;
 /// A future implementation owns the HTTP listener, lifecycle tasks, SQLite
 /// writer, and Docker connection. This is a hosting interface, not a runtime
 /// backend registry or a replacement for SandboxService.
-#[allow(async_fn_in_trait)]
 pub trait Daemon: Sized + Send {
     /// The single public sandbox interface hosted by this daemon.
     type Service: SandboxService;
@@ -21,7 +20,7 @@ pub trait Daemon: Sized + Send {
     ///
     /// Unproven checkpoint or workspace capabilities must be reported as
     /// unavailable, never substituted with a cold boot.
-    async fn start(config: DaemonConfig) -> Result<Self, StartupError>;
+    fn start(config: DaemonConfig) -> impl Future<Output = Result<Self, StartupError>> + Send;
 
     /// Access the same interface used by transport adapters.
     fn service(&self) -> &Self::Service;
@@ -31,7 +30,7 @@ pub trait Daemon: Sized + Send {
 
     /// Stop accepting requests and leave accepted work durably recoverable.
     /// Shutdown does not mean destroying sandboxes or deleting snapshots.
-    async fn shutdown(self) -> Result<(), ShutdownError>;
+    fn shutdown(self) -> impl Future<Output = Result<(), ShutdownError>> + Send;
 }
 
 /// Hosting failures, separate from individual sandbox-request errors.
