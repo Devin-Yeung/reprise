@@ -5,7 +5,7 @@
   reprise-test-tools,
 }:
 
-# Shared filesystem layout for the Nix image and the Dockerfile.
+# Filesystem layout assembled into the Nix test image.
 buildEnv {
   name = "reprise-test-runtime";
   paths = [

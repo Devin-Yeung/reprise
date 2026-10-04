@@ -1,9 +1,0 @@
-# Only the inputs consumed by the Nix build belong in the Docker context.
-**
-!Dockerfile
-!flake.nix
-!flake.lock
-!nix/
-!nix/**
-!test-tools/
-!test-tools/**

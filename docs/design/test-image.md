@@ -12,79 +12,67 @@ deployment image for the sandbox daemon. It contains:
 No `reprised`, Rust/Go compiler, Python interpreter, package installation at
 startup, or host source mount is involved.
 
-## Build and load
+## Build and publish
 
-`flake.lock` pins nixpkgs, including the Go toolchain and runtime tools.
-`go.mod` / `go.sum` lock Go dependencies; Nix also hashes the vendored closure.
-`nix/reprise-test-tools.nix` builds only `test-tools/`, with CGO disabled.
-`nix/reprise-test-image.nix` assembles their runtime closures from scratch with
-a fixed creation timestamp and a Nix-output-derived image tag, not `latest`.
-The Nix-built runtime has no upstream base-image dependency.
+Nix is the only image builder. `flake.lock` pins nixpkgs, including the Go
+toolchain and runtime tools; `go.mod` / `go.sum` and `vendorHash` lock the
+Go dependencies. The image has no upstream base image, uses a fixed creation
+timestamp, and contains no Rust workspace sources.
 
-Build for the **Docker host's** architecture, not necessarily the developer's:
+`.github/workflows/publish-test-image.yml` builds on native amd64 and arm64
+Linux runners when image inputs change, or on manual dispatch. Each runner
+loads its Nix output and checks the platform and memory workload with Docker's
+ordinary runtime. This is image validation, not a checkpoint/restore test.
 
-```sh
-target_system=x86_64-linux # or aarch64-linux
-image_attr="path:.#packages.${target_system}.reprise-test-image"
-nix build "$image_attr" --out-link result-test-image
-tag=$(nix eval --raw "${image_attr}.imageTag")
-```
+PRs and dispatches on non-main refs only build and verify. Main publishes the
+platform images to `ghcr.io/<owner>/<repository>-test-image`; after both jobs
+succeed, a separate job assembles a multi-architecture index from their digests.
+The run summary and `test-image-reference` artifact contain the immutable
+`image@sha256:…` reference. No `latest` tag is used.
 
-Linux image builds require a matching Linux Nix builder. On macOS, configure
-a Linux remote builder or run the build on Linux; a Docker socket tunnel does
-not itself provide a Nix builder. The native Go tools can also be built on
-Apple Silicon macOS with `nix build path:.#reprise-test-tools`.
+On first publication, set the GHCR package visibility to public if developers
+and fork PRs should pull without credentials. Repository visibility alone does
+not make a newly created GHCR package public.
 
-### Docker-only build
+## Consume, don't build
 
-No host Nix installation or remote Nix builder is needed for this path.
-The Dockerfile runs Nix inside a Linux builder container, then copies the shared
-runtime layout and its complete Nix store closure into a `scratch` image.
-The final image contains neither Nix nor the builder's operating system.
+Tests should pin the published multi-architecture index digest. Updating that
+reference is an explicit fixture upgrade, independent of ordinary Rust changes.
+Docker selects the image for the **server's** Linux architecture, not the
+developer's architecture. A Mac connected to an amd64 Docker host consumes
+the amd64 image.
 
-Build on the **same explicit endpoint** the acceptance fixture will use:
-
-```sh
-export REPRISE_DOCKER_SOCKET=/tmp/reprise-lighthouse.sock
-docker --host "unix://$REPRISE_DOCKER_SOCKET" build \
-  --platform linux/amd64 \
-  --tag reprise-test-image:local .
-export REPRISE_TEST_IMAGE=$(
-  docker --host "unix://$REPRISE_DOCKER_SOCKET" image inspect \
-    --format '{{.Id}}' reprise-test-image:local
-)
-```
-
-Use `linux/arm64` for an ARM64 Docker host. Cross-architecture builds require
-Docker's emulation support; native builds do not. Docker Desktop provides
-the Linux build environment on macOS. Build-time network access is required
-for the Nix builder image and dependencies; no Docker socket is mounted into
-the build.
-
-Both paths use `nix/reprise-test-runtime.nix` and the locked dependencies.
-The Dockerfile mirrors the entrypoint, command, and environment from
-`nix/reprise-test-image.nix`; keep these synchronized. Docker's image metadata
-and layer assembly differ from `dockerTools`, so the two paths need not produce
-the same image ID. The builder's multi-architecture `nixos/nix` image is pinned
-by digest; Docker's output still is not promised to be byte-for-byte reproducible.
-The `local` tag is only a build label; pass the immutable image ID to tests.
-
-### Load a Nix-built image
-
-Load into the **same explicit endpoint** the acceptance fixture will use:
+Until registry preparation is wired into the fixture, pull explicitly:
 
 ```sh
-export REPRISE_DOCKER_SOCKET=/tmp/reprise-lighthouse.sock
-docker --host "unix://$REPRISE_DOCKER_SOCKET" image load --input result-test-image
-export REPRISE_TEST_IMAGE=$(
-  docker --host "unix://$REPRISE_DOCKER_SOCKET" image inspect \
-    --format '{{.Id}}' "reprise-test-image:$tag"
-)
+# Use the real image@sha256:… reference from the publication summary.
+image_ref="$REPRISE_TEST_IMAGE_REF"
+docker_host=ssh://user@workstation
+docker --host "$docker_host" image pull "$image_ref"
+docker --host "$docker_host" image inspect --format '{{.Id}}' "$image_ref"
 ```
 
-The image ID selects the loaded artifact immutably. Loading the image is
-external fixture preparation, not part of the `SandboxService` scenario.
-There is no registry push or implicit image pull.
+The resulting Docker image ID is platform-specific and is not the index digest.
+Use it with the daemon on that same endpoint. No local Nix installation,
+remote Nix builder, Dockerfile, archive upload, or build fallback is needed.
+
+The first pinned reference must come from a successful publication; do not
+check in a placeholder digest. Checkpoint/restore tests additionally require
+a Linux host with the supported `runsc` configuration and capabilities.
+A runnable fixture image alone does not establish those capabilities.
+
+## Maintain the image
+
+Only fixture maintainers build images. On a matching Linux Nix builder:
+
+```sh
+system=x86_64-linux # or aarch64-linux
+nix build --no-update-lock-file \
+  "path:.#packages.${system}.reprise-test-image" --out-link result-test-image
+```
+
+The native workload binaries can also be built on macOS with
+`nix build path:.#reprise-test-tools`. This does not build a Linux image.
 
 ## Memory workload interface
 
@@ -127,4 +115,4 @@ Add small Go commands under `test-tools/cmd/` and list them in
 `go.sum` and `vendorHash` together. Building the test image never depends on the
 Rust workspace.
 Additional test/base images can be separate Nix expressions when needed;
-there is no base-image hierarchy or image registry abstraction yet.
+there is no base-image hierarchy.
