@@ -3,7 +3,7 @@ mod execution;
 mod lifecycle;
 mod memory_state;
 
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Context, Result, ensure};
 use reprise_api::{CreateSandbox, Destroy, SandboxService, TemplateId};
 use std::time::Duration;
 use tokio::time::timeout;
@@ -31,7 +31,7 @@ pub async fn verify<S: SandboxService>(service: &S, template: TemplateId) -> Res
     let sandbox = service
         .create(CreateSandbox::builder().template(template).build())
         .await
-        .map_err(|e| anyhow!("create: {e:?}"))?;
+        .context("create")?;
 
     // Return errors rather than panic so teardown is attempted on failed
     // assertions and timeout. Only this test's SandboxId is ever destroyed.
@@ -41,7 +41,7 @@ pub async fn verify<S: SandboxService>(service: &S, template: TemplateId) -> Res
         let operation = service
             .destroy(&sandbox.id, Destroy::builder().force(true).build())
             .await
-            .map_err(|e| anyhow!("destroy: {e:?}"))?;
+            .context("destroy")?;
         wait_operation(service, operation).await?;
         Ok::<_, anyhow::Error>(())
     })

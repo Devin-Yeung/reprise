@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use reprise_api::{Channel, Execute, ExecutionEvent, ExecutionState, SandboxId, SandboxService};
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
@@ -22,7 +22,7 @@ pub(super) async fn execute_successfully<S: SandboxService>(
                     .build(),
             )
             .await
-            .map_err(|e| anyhow!("execute: {e:?}"))?;
+            .context("execute")?;
 
         let mut cursor = 0;
         let mut stdout = Vec::new();
@@ -32,7 +32,7 @@ pub(super) async fn execute_successfully<S: SandboxService>(
             let page = service
                 .execution_events(&execution.id, cursor, 256)
                 .await
-                .map_err(|e| anyhow!("execution_events: {e:?}"))?;
+                .context("execution_events")?;
             let empty = page.events.is_empty();
 
             for event in page.events {
@@ -55,7 +55,7 @@ pub(super) async fn execute_successfully<S: SandboxService>(
             let current = service
                 .get_execution(&execution.id)
                 .await
-                .map_err(|e| anyhow!("get_execution: {e:?}"))?;
+                .context("get_execution")?;
 
             ensure!(
                 !current.output_truncated && !current.outcome_unknown,

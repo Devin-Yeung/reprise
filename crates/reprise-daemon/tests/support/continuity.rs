@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use reprise_api::{OperationResult, Resume, SandboxId, SandboxService, SandboxState, Suspend};
 use uuid::Uuid;
 
@@ -30,7 +30,7 @@ pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &Sandbox
     let running = service
         .inspect(sandbox)
         .await
-        .map_err(|e| anyhow!("inspect: {e:?}"))?;
+        .context("inspect")?;
 
     ensure!(
         running.sandbox.state == SandboxState::Running,
@@ -44,7 +44,7 @@ pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &Sandbox
     let suspend = service
         .suspend(sandbox, Suspend::default())
         .await
-        .map_err(|e| anyhow!("suspend: {e:?}"))?;
+        .context("suspend")?;
     let suspended = wait_operation(service, suspend).await?;
 
     let snapshot = match suspended.result {
@@ -56,7 +56,7 @@ pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &Sandbox
     let info = service
         .inspect(sandbox)
         .await
-        .map_err(|e| anyhow!("inspect suspended: {e:?}"))?;
+        .context("inspect suspended")?;
 
     ensure!(
         info.sandbox.state == SandboxState::Suspended,
@@ -70,7 +70,7 @@ pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &Sandbox
     let resume = service
         .resume(sandbox, Resume::builder().build())
         .await
-        .map_err(|e| anyhow!("resume: {e:?}"))?;
+        .context("resume")?;
     let resumed = wait_operation(service, resume).await?;
 
     match resumed.result {

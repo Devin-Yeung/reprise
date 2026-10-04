@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 typed-builder.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 insta = { version = "1", features = ["json"] }

@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
 use reprise_api::{Operation, OperationState, SandboxService};
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
@@ -20,7 +20,7 @@ pub(super) async fn wait_operation<S: SandboxService>(
             operation = service
                 .get_operation(&operation.id)
                 .await
-                .map_err(|e| anyhow!("get_operation: {e:?}"))?;
+                .context("get_operation")?;
         }
     })
     .await
