@@ -5,7 +5,9 @@
 
 use std::time::Duration;
 
-use crate::id::SnapshotId;
+use crate::capabilities::Capability;
+use crate::id::{ExecutionId, IdempotencyKey, OperationId, SandboxId, SnapshotId};
+use crate::operation::OperationKind;
 use crate::sandbox::SandboxState;
 
 /// A service failure. A command's non-zero exit is not one of these.
@@ -13,7 +15,7 @@ use crate::sandbox::SandboxState;
 pub enum Error {
     /// No such sandbox, execution or operation. HTTP 404, not retryable.
     #[error("{resource} not found")]
-    NotFound { resource: String },
+    NotFound { resource: Resource },
 
     /// Malformed request. HTTP 400, not retryable.
     #[error("invalid {field}: {message}")]
@@ -24,8 +26,8 @@ pub enum Error {
     PathEscape { path: String },
 
     /// The runtime cannot provide this capability. HTTP 412, not retryable.
-    #[error("unsupported capability: {name}")]
-    UnsupportedCapability { name: String },
+    #[error("unsupported capability: {capability:?}")]
+    UnsupportedCapability { capability: Capability },
 
     /// A snapshot does not match the runtime or configuration. HTTP 412, not
     /// retryable.
@@ -38,14 +40,14 @@ pub enum Error {
     /// An idempotency key was reused with a different payload. HTTP 409, not
     /// retryable.
     #[error("idempotency key {key} was reused with a different payload")]
-    IdempotencyConflict { key: String },
+    IdempotencyConflict { key: IdempotencyKey },
 
     /// The lifecycle state forbids this request. HTTP 409, retry after reading
     /// the sandbox's status.
-    #[error("{requested} is not allowed while the sandbox is {state:?}")]
+    #[error("{requested:?} is not allowed while the sandbox is {state:?}")]
     TransitionConflict {
         state: SandboxState,
-        requested: String,
+        requested: RequestKind,
     },
 
     /// A drain did not complete before its deadline. HTTP 409, retryable.
@@ -71,4 +73,44 @@ pub enum Error {
     /// A bug or an unhandled state. HTTP 500.
     #[error("internal error: {message}")]
     Internal { message: String },
+}
+
+/// The resource an [`Error::NotFound`] refers to.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Resource {
+    Sandbox(SandboxId),
+    Execution(ExecutionId),
+    Operation(OperationId),
+}
+
+impl std::fmt::Display for Resource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Sandbox(id) => write!(f, "sandbox {id}"),
+            Self::Execution(id) => write!(f, "execution {id}"),
+            Self::Operation(id) => write!(f, "operation {id}"),
+        }
+    }
+}
+
+/// A sandbox request that the lifecycle state can forbid, as reported by
+/// [`Error::TransitionConflict`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RequestKind {
+    Execute,
+    ReadFile,
+    WriteFile,
+    Suspend,
+    Resume,
+    Destroy,
+}
+
+impl From<OperationKind> for RequestKind {
+    fn from(kind: OperationKind) -> Self {
+        match kind {
+            OperationKind::Suspend => Self::Suspend,
+            OperationKind::Resume => Self::Resume,
+            OperationKind::Destroy => Self::Destroy,
+        }
+    }
 }

@@ -34,7 +34,7 @@ pub mod sandbox;
 pub mod service;
 
 pub use capabilities::{Capabilities, Capability, RuntimeInfo};
-pub use error::Error;
+pub use error::{Error, RequestKind, Resource};
 pub use execution::{
     Channel, EventPage, Execute, ExecuteBuilder, Execution, ExecutionEvent, ExecutionState,
 };

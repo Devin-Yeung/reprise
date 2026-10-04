@@ -3,6 +3,7 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
+use reprise_api::TemplateId;
 use typed_builder::TypedBuilder;
 
 /// Configuration for one daemon, one state writer, and one Docker endpoint.
@@ -44,10 +45,10 @@ pub struct DockerConfig {
 /// One fixed environment definition; no template registry is implied.
 #[derive(Clone, Debug, TypedBuilder)]
 pub struct FixedTemplate {
-    /// External template identifier. Conversion to the domain TemplateId and
-    /// validation are deferred; unknown identifiers must not be silently ignored.
+    /// The only template identifier accepted; requests naming any other
+    /// template must be refused, not silently mapped to this one.
     #[builder(setter(into))]
-    pub id: String,
+    pub id: TemplateId,
     /// Docker image reference. Pin a digest for reproducible continuity tests.
     #[builder(setter(into))]
     pub image: String,

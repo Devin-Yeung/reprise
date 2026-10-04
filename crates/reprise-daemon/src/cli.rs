@@ -7,6 +7,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use clap::Parser;
+use reprise_api::TemplateId;
 
 /// Start a single-node Reprise daemon (implementation pending).
 #[derive(Clone, Debug, Parser)]
@@ -34,7 +35,7 @@ pub struct Cli {
 
     /// Only template identifier accepted by the initial fixed-image backend.
     #[arg(long, default_value = "default")]
-    pub template_id: String,
+    pub template_id: TemplateId,
 
     /// Fixed sandbox image; specify a digest for reproducible tests.
     #[arg(long)]
