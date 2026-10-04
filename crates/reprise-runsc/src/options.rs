@@ -1,30 +1,44 @@
 use std::path::PathBuf;
 
+use typed_builder::TypedBuilder;
+
 /// Prepared OCI bundle and launch-time stdio, shared by create and run commands.
 /// Console/TTY allocation is outside this interface; `process.terminal` must be false.
-#[derive(Clone, Debug, PartialEq, Eq)]
+///
+/// ```
+/// use reprise_runsc::{CreateOptions, ContainerIo, OutputTarget};
+///
+/// let create = CreateOptions::builder()
+///     .bundle("/var/lib/reprise/bundle")
+///     .pid_file("/var/lib/reprise/container.pid")
+///     .io(ContainerIo::builder().stderr(OutputTarget::Null).build())
+///     .build();
+/// assert_eq!(create.bundle, std::path::Path::new("/var/lib/reprise/bundle"));
+/// assert_eq!(create.io.stdout, OutputTarget::Inherit);
+/// ```
+///
+/// The bundle must be supplied before building:
+///
+/// ```compile_fail
+/// use reprise_runsc::CreateOptions;
+/// let create = CreateOptions::builder().build();
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder)]
 pub struct CreateOptions {
+    #[builder(setter(into))]
     pub bundle: PathBuf,
     /// Optional host file receiving the sandbox PID, not an application PID.
+    #[builder(default, setter(strip_option, into))]
     pub pid_file: Option<PathBuf>,
+    #[builder(default)]
     pub io: ContainerIo,
-}
-
-impl CreateOptions {
-    /// Uses inherited stdout/stderr and closed input for a noninteractive workload.
-    pub fn new(bundle: impl Into<PathBuf>) -> Self {
-        Self {
-            bundle: bundle.into(),
-            pid_file: None,
-            io: ContainerIo::default(),
-        }
-    }
 }
 
 /// Output destinations established when creating a container. Input is `/dev/null`.
 /// Pipes are intentionally omitted: sandbox children can keep them open after
 /// the CLI exits, preventing an output collector from reaching EOF.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, TypedBuilder)]
+#[builder(field_defaults(default))]
 pub struct ContainerIo {
     pub stdout: OutputTarget,
     pub stderr: OutputTarget,
@@ -41,28 +55,35 @@ pub enum OutputTarget {
 }
 
 /// Execution checkpoint options; these do not capture arbitrary external volumes.
-#[derive(Clone, Debug, PartialEq, Eq)]
+///
+/// ```
+/// use reprise_runsc::{CheckpointOptions, Compression};
+///
+/// let checkpoint = CheckpointOptions::builder()
+///     .image_path("/var/lib/reprise/checkpoint")
+///     .compression(Compression::None)
+///     .build();
+/// assert!(!checkpoint.leave_running);
+/// ```
+///
+/// ```compile_fail
+/// use reprise_runsc::CheckpointOptions;
+/// let checkpoint = CheckpointOptions::builder().build();
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder)]
 pub struct CheckpointOptions {
+    #[builder(setter(into))]
     pub image_path: PathBuf,
+    #[builder(default)]
     pub leave_running: bool,
     /// `None` delegates to the installed runsc's compression default.
+    #[builder(default, setter(strip_option))]
     pub compression: Option<Compression>,
+    #[builder(default)]
     pub exclude_committed_zero_pages: bool,
     /// Writes checkpoint pages with O_DIRECT, bypassing the host page cache.
+    #[builder(default)]
     pub direct_io: bool,
-}
-
-impl CheckpointOptions {
-    /// Keeps runsc's compression default and stops the container after checkpoint.
-    pub fn new(image_path: impl Into<PathBuf>) -> Self {
-        Self {
-            image_path: image_path.into(),
-            leave_running: false,
-            compression: None,
-            exclude_committed_zero_pages: false,
-            direct_io: false,
-        }
-    }
 }
 
 /// Compression choices supported by runsc's execution checkpoint CLI.
@@ -75,29 +96,47 @@ pub enum Compression {
 /// Detached restore from an execution checkpoint.
 /// The caller retains the image and unchanged dependencies, and checks runsc,
 /// platform, CPU, and bundle compatibility before invoking restore.
-#[derive(Clone, Debug, PartialEq, Eq)]
+///
+/// ```
+/// use reprise_runsc::{CreateOptions, DeleteOptions, RestoreOptions};
+///
+/// let restore = RestoreOptions::builder()
+///     .create(CreateOptions::builder().bundle("/var/lib/reprise/bundle").build())
+///     .image_path("/var/lib/reprise/checkpoint")
+///     .background(true)
+///     .build();
+/// let cleanup = DeleteOptions::builder().force(true).build();
+/// assert!(restore.background && cleanup.force);
+/// ```
+///
+/// Both launch configuration and image path are required:
+///
+/// ```compile_fail
+/// use reprise_runsc::RestoreOptions;
+/// let restore = RestoreOptions::builder().image_path("/checkpoint").build();
+/// ```
+///
+/// ```compile_fail
+/// use reprise_runsc::{CreateOptions, RestoreOptions};
+/// let create = CreateOptions::builder().bundle("/bundle").build();
+/// let restore = RestoreOptions::builder().create(create).build();
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder)]
 pub struct RestoreOptions {
     /// Supplies the bundle and launch stdio if runsc needs to create a container.
     pub create: CreateOptions,
+    #[builder(setter(into))]
     pub image_path: PathBuf,
     /// Requests background image loading; effective only for uncompressed images.
     /// A compressed image can cause runsc to ignore this flag.
+    #[builder(default)]
     pub background: bool,
+    #[builder(default)]
     pub direct_io: bool,
 }
 
-impl RestoreOptions {
-    pub fn new(create: CreateOptions, image_path: impl Into<PathBuf>) -> Self {
-        Self {
-            create,
-            image_path: image_path.into(),
-            background: false,
-            direct_io: false,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, TypedBuilder)]
+#[builder(field_defaults(default))]
 pub struct DeleteOptions {
     pub force: bool,
 }

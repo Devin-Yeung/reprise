@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use typed_builder::TypedBuilder;
+
 /// Location of runsc and its runtime state, independent of OCI bundle paths.
 /// Paths are passed without filesystem preparation; callers should use absolute
 /// paths so changing the host working directory cannot change their meaning.
@@ -13,7 +15,14 @@ pub struct RunscConfig {
 
 /// Typed global flags. `None` leaves the flag unset, retaining runsc's default.
 /// Defaults can change across runsc versions; pin the binary for comparisons.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+///
+/// ```
+/// use reprise_runsc::{GlobalOptions, Platform};
+/// let options = GlobalOptions::builder().platform(Platform::Systrap).build();
+/// assert_eq!(options.overlay, None);
+/// ```
+#[derive(Clone, Debug, Default, PartialEq, Eq, TypedBuilder)]
+#[builder(field_defaults(default, setter(strip_option)))]
 pub struct GlobalOptions {
     pub platform: Option<Platform>,
     pub network: Option<Network>,
