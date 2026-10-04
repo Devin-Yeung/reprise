@@ -6,7 +6,7 @@ A sandbox has a filesystem. The program inside it opens `/bin/memory-state` and 
 
 Every process resolves a path that starts with `/` from its root directory. For a container, that directory is prepared on the host and then made the process's `/`. That directory is the **rootfs**.
 
-In this repository the field is `Workload.rootfs`: a self-contained directory. Links resolve in the sandbox's filesystem view. An absolute link to `/nix/store/...` is valid when its target was copied into the directory's `nix/store`; the sandbox does not see the host's store automatically. The base directory stays unchanged. File writes are kept in memory, so a snapshot includes them.[1]
+In this repository `Workload.rootfs` is an OCI filesystem fragment: a shared base directory and read-only mounts for local Nix store objects. Links resolve in the sandbox's filesystem view; `/nix/store/...` targets are visible because the runtime mounts them explicitly. The sandbox does not see the host store automatically. Per-instance writable locations or overlays are configured separately.[1]
 
 The Linux kernel uses the same word for something else: during boot it mounts a special ramfs and calls that mount `rootfs`.[2] In these notes, and in the runtime, the word means the sandbox's root directory.
 
@@ -16,7 +16,7 @@ An OCI **image** is a stack of tar archives called layers. Each layer is a chang
 
 A **bundle** is what an OCI runtime such as `runsc` actually executes: a `config.json` plus the rootfs directory that `config.json` names. The runtime does not pull images and does not unpack layers.[4] gVisor's own quick start builds that directory first (in the example, by exporting a Docker image), writes `config.json` with `runsc spec`, and only then calls `runsc run`.[5]
 
-Phase 1 does the same split. Nix builds the workload and exports its runtime closure in a small artifact; `reprise-oci` copies the listed store objects into a rootfs before measurement ([design](../design/nix-rootfs.md)). Unpacking images, sharing unpacked layers between sandboxes, and caching those layers are the work in [research 01](../research/substrate-snapshot-optimizations/01-share-unpacked-image-layers.md), and the plan leaves that until restore itself is measured.[1]
+Phase 1 does the same split. Nix builds the workload and exports its runtime closure in a small artifact; `reprise-oci` generates root and read-only store-mount configuration before measurement ([design](../design/nix-rootfs.md)). Unpacking images, sharing unpacked layers between sandboxes, and caching those layers are the work in [research 01](../research/substrate-snapshot-optimizations/01-share-unpacked-image-layers.md), and the plan leaves that until restore itself is measured.[1]
 
 ### Deletions have to be recorded
 

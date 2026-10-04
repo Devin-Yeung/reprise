@@ -67,8 +67,8 @@ to first response and per-stage timings; the optimization candidates below.
 - *Durability.* No fsync; a host crash may lose or corrupt snapshots.
 - *Image preparation* (pulling and unpacking OCI images, layer sharing from
   [research 01](../research/substrate-snapshot-optimizations/01-share-unpacked-image-layers.md)).
-  Nix exports closure artifacts; `reprise-oci` copies their local store objects
-  into rootfs directories before measurement ([design](nix-rootfs.md)).
+  Nix exports closure artifacts; `reprise-oci` generates read-only store mounts
+  and a shared base root reference before measurement ([design](nix-rootfs.md)).
 - *Remote snapshots* and everything that moves them between machines
   (research 02, 08, 09), plus the local copying and staging steps (03, 04) that
   this layout does not have.
@@ -84,7 +84,7 @@ to first response and per-stage timings; the optimization candidates below.
 - `crates/reprise-bench`: a benchmark binary with its own measurement loop.
   criterion does not fit: each sample drops caches, boots a sandbox and waits
   seconds, and needs a per-stage breakdown.
-- `crates/reprise-oci`: materializes rootfs from Nix closure artifacts before
+- `crates/reprise-oci`: generates root and store-mount configuration from Nix closure artifacts before
   the benchmark loop. The runtime owns per-instance bundle configuration.
 - `nix/` and `flake.nix`: build workloads and export their closure artifacts.
 
@@ -107,12 +107,17 @@ from the directory, not hardcoded.
 
 ## Rootfs and network
 
-**Rootfs.** Nix exports a workload's runtime closure as a build artifact containing
-`store-paths`. `reprise-oci` copies those objects into the prepared directory's
-`nix/store`, preserving their paths and symbolic links ([design](nix-rootfs.md)).
-Preparation occurs before the benchmark loop. The directory is read-only, which rules
-out runsc's default `--overlay2=root:self`, because that creates its backing file
-inside the rootfs. Reprise uses `--overlay2=root:memory`.
+**Rootfs.** Nix exports a workload runtime closure as a `store-paths` artifact.
+`reprise-oci` reads the closure paths and exposes filesystem configuration
+with a shared base root and read-only mounts at their original `/nix/store`
+paths ([design](nix-rootfs.md)). No store files are copied. The runtime adds the
+process and runtime mounts, and retains the same filesystem configuration for
+restore. Sources remain available for the lifetime of snapshots.
+
+The fragment defaults to a read-only root. To keep workload file writes in the
+snapshot, the runtime must explicitly make the container root writable with
+`--overlay2=root:memory`, while store mounts remain read-only. TODO: validate this
+combination in the Linux checkpoint/restore correctness gate.
 
 **Network.** Each instance gets a network namespace and a veth pair with fixed
 addresses: host `10.200.0.1`, sandbox `10.200.0.2`. A restore therefore sees the

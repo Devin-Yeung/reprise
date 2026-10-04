@@ -25,8 +25,8 @@
 //!     platform: Default::default(),
 //! })?;
 //! let workload = Workload {
-//!     rootfs: "/var/lib/reprise-rootfs/memory-state".into(),
-//!     args: ["/bin/memory-state", "serve", "--listen", "0.0.0.0:8765"].map(Into::into).into(),
+//!     rootfs: reprise_oci::nix::NixClosure::load("/var/lib/reprise-closure/store-paths")?,
+//!     args: ["/nix/store/<hash>-reprise-test-tools/bin/memory-state", "serve", "--listen", "0.0.0.0:8765"].map(Into::into).into(),
 //!     env: Vec::new(),
 //! };
 //! let snapshot = runtime.cold_boot(&workload)?.checkpoint(&CheckpointOptions::default())?;

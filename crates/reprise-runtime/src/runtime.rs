@@ -31,11 +31,9 @@ pub enum Platform {
 /// What a cold boot runs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Workload {
-    /// A self-contained root filesystem. Links resolve in the sandbox's view:
-    /// `/nix/store/...` targets must be present beneath this directory's
-    /// `nix/store`. The base stays unchanged; the sandbox's file writes are kept
-    /// in memory, so snapshots include them.
-    pub rootfs: PathBuf,
+    /// Base root and read-only mounts for the workload's local dependencies.
+    /// Sources must remain available while instances or snapshots use them.
+    pub rootfs: reprise_oci::nix::NixClosure,
     /// The process's argv. `args[0]` is an absolute path inside `rootfs`.
     pub args: Vec<String>,
     /// The process's entire environment, as `KEY=VALUE` entries.

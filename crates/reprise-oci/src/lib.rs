@@ -1,18 +1,18 @@
-//! Prepares root filesystems for OCI bundles from local artifacts.
+//! Describes local Nix closures as OCI filesystem configuration.
 //!
-//! [`nix::NixClosure`] loads the runtime dependency list from a Nix closure
-//! artifact. Materialization copies that closure into a new [`Rootfs`], retaining
-//! its `/nix/store` paths. The runtime separately owns the bundle's command,
-//! mounts and networking. Preparation happens before startup measurements.
+//! [`nix::NixClosure`] reads a closure artifact and exposes a base [`Root`] and
+//! read-only [`Mount`]s for its store objects. The caller chooses and prepares
+//! the base directory, then adds process and runtime configuration to its spec.
+//! No files are copied and no mounts are performed here.
 //!
-//! This blocking API supports Unix hosts and uses filesystem APIs without
-//! invoking Nix or external copy tools. Sources must remain available and
-//! unchanged throughout preparation, and target the sandbox's architecture.
+//! The artifact producer supplies a complete closure for the target architecture.
+//! The caller keeps its objects available and unchanged for containers and saved
+//! snapshots, including retaining Nix GC roots. This crate does not invoke Nix.
+//!
+//! [`Root`]: oci_spec::runtime::Root
+//! [`Mount`]: oci_spec::runtime::Mount
 
-mod copy;
 mod error;
 pub mod nix;
-mod rootfs;
 
 pub use error::Error;
-pub use rootfs::Rootfs;

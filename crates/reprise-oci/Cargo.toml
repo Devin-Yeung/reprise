@@ -1,6 +1,6 @@
 [package]
 name = "reprise-oci"
-description = "Prepare root filesystems for Reprise OCI bundles."
+description = "Prepare filesystem configuration for Reprise OCI bundles."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,9 @@ publish = false
 [dependencies]
 oci-spec = "0.10.0"
 thiserror.workspace = true
+
+[dev-dependencies]
+serde_json = "1"
 
 [lints]
 workspace = true

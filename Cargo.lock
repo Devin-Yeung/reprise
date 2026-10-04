@@ -223,6 +223,7 @@ name = "reprise-oci"
 version = "0.1.0"
 dependencies = [
  "oci-spec",
+ "serde_json",
  "thiserror",
 ]
 
@@ -230,6 +231,7 @@ dependencies = [
 name = "reprise-runtime"
 version = "0.1.0"
 dependencies = [
+ "reprise-oci",
  "thiserror",
 ]
 

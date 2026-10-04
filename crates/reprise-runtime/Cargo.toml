@@ -9,6 +9,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+reprise-oci = { path = "../reprise-oci" }
 thiserror.workspace = true
 
 [lints]
