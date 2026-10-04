@@ -21,8 +21,10 @@ timestamp, and contains no Rust workspace sources.
 
 `.github/workflows/publish-test-image.yml` builds on native amd64 and arm64
 Linux runners when image inputs change, or on manual dispatch. Each runner
-loads its Nix output and checks the platform and memory workload with Docker's
-ordinary runtime. This is image validation, not a checkpoint/restore test.
+loads its Nix output and checks that Docker reports `linux/$arch`. It does not
+execute `memory-state`; that contract belongs to the integration tests and is
+expected to change without a publisher update. This is image validation, not a
+checkpoint/restore test.
 
 PRs and dispatches on non-main refs only build and verify. Main publishes the
 platform images to `ghcr.io/<owner>/<repository>-test-image`; after both jobs

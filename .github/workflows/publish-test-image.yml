@@ -62,21 +62,14 @@ jobs:
           # Loading is a publisher verification step, never a business-test fallback.
           gzip --decompress --stdout result-test-image | docker image load
 
-      - name: Verify platform and workload
+      - name: Verify platform
         env:
           IMAGE: ${{ steps.image.outputs.local }}
           ARCH: ${{ matrix.arch }}
         run: |
+          # Confirm the image matches this runner. Do not execute memory-state:
+          # its contract is expected to change independently of publication.
           test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$IMAGE")" = "linux/$ARCH"
-          container=$(docker run --detach "$IMAGE")
-          trap 'docker rm --force "$container"' EXIT
-          start=$(docker exec "$container" /bin/memory-state start)
-          nonce=$(jq -er '.boot_nonce | select(test("^[0-9a-f]{64}$"))' <<< "$start")
-          jq -e '.value == null and .revision == 0' <<< "$start"
-          docker exec "$container" /bin/memory-state mutate publisher-smoke |
-            jq -e --arg nonce "$nonce" '.boot_nonce == $nonce and .value == "publisher-smoke" and .revision == 1'
-          docker exec "$container" /bin/memory-state state |
-            jq -e --arg nonce "$nonce" '.boot_nonce == $nonce and .value == "publisher-smoke" and .revision == 1'
 
       - uses: docker/login-action@v3
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
