@@ -67,7 +67,8 @@ to first response and per-stage timings; the optimization candidates below.
 - *Durability.* No fsync; a host crash may lose or corrupt snapshots.
 - *Image preparation* (pulling and unpacking OCI images, layer sharing from
   [research 01](../research/substrate-snapshot-optimizations/01-share-unpacked-image-layers.md)).
-  Nix builds rootfs directories instead.
+  Nix exports closure artifacts; `reprise-oci` copies their local store objects
+  into rootfs directories before measurement ([design](nix-rootfs.md)).
 - *Remote snapshots* and everything that moves them between machines
   (research 02, 08, 09), plus the local copying and staging steps (03, 04) that
   this layout does not have.
@@ -83,7 +84,9 @@ to first response and per-stage timings; the optimization candidates below.
 - `crates/reprise-bench`: a benchmark binary with its own measurement loop.
   criterion does not fit: each sample drops caches, boots a sandbox and waits
   seconds, and needs a per-stage breakdown.
-- `nix/`: one derivation per workload, each producing a rootfs directory.
+- `crates/reprise-oci`: materializes rootfs from Nix closure artifacts before
+  the benchmark loop. The runtime owns per-instance bundle configuration.
+- `nix/` and `flake.nix`: build workloads and export their closure artifacts.
 
 The API is blocking. The benchmark runs one operation at a time; parallelism
 within an operation, such as preparing the bundle while prefetching snapshot
@@ -104,9 +107,10 @@ from the directory, not hardcoded.
 
 ## Rootfs and network
 
-**Rootfs.** Each workload's Nix derivation copies its runtime closure into a
-self-contained directory. A `buildEnv` tree alone would be symlinks into a
-`/nix/store` the sandbox does not have. The directory is read-only, which rules
+**Rootfs.** Nix exports a workload's runtime closure as a build artifact containing
+`store-paths`. `reprise-oci` copies those objects into the prepared directory's
+`nix/store`, preserving their paths and symbolic links ([design](nix-rootfs.md)).
+Preparation occurs before the benchmark loop. The directory is read-only, which rules
 out runsc's default `--overlay2=root:self`, because that creates its backing file
 inside the rootfs. Reprise uses `--overlay2=root:memory`.
 
@@ -172,7 +176,7 @@ or the rootfs is missing.
 
 ## Repository changes
 
-- Add `reprise-runtime`, `reprise-bench` and the workload rootfs derivations.
+- Add `reprise-runtime`, `reprise-bench`, `reprise-oci` and workload closure artifacts.
 - Remove `reprise`, `reprise-api`, `reprise-daemon` and `reprise-test-support`,
   the `docker-integration` CI job and `publish-test-image.yml`. Retire
   `test-image.md` and `test-support-crate.md` in the same change, and rewrite

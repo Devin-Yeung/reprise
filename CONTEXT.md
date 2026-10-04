@@ -15,7 +15,7 @@ One running incarnation of a sandbox. A sandbox has at most one; suspend ends it
 _Avoid_: Container, VM, runtime
 
 **Image**:
-The OCI image a sandbox's filesystem is built from, and the starting point of a cold boot.
+An OCI image from which a sandbox's initial filesystem can be prepared.
 _Avoid_: 镜像, checkpoint image
 
 **Snapshot**:
@@ -25,6 +25,32 @@ _Avoid_: Checkpoint image, memory dump, 镜像
 **Execution**:
 One command run inside a running sandbox, together with its output and exit status.
 _Avoid_: Operation, job
+
+### Filesystem preparation
+
+**Closure artifact**:
+A workload build output identifying the packages and runtime dependencies needed
+to prepare its filesystem. It describes the files to include rather than
+containing a prepared filesystem.
+_Avoid_: Image, rootfs
+
+**Nix closure**:
+The set of Nix store objects containing a workload and all of its runtime dependencies.
+_Avoid_: Closure artifact, rootfs
+
+**Store object**:
+One package output or other immutable filesystem object in a Nix store. Its identity is the store path shared by the host and the sandbox.
+_Avoid_: Package, file
+
+**Rootfs**:
+The prepared filesystem an instance sees as its root directory, and the starting
+point of a cold boot.
+_Avoid_: Image, closure artifact
+
+**Bundle**:
+A rootfs reference together with the configuration that specifies how an instance
+runs.
+_Avoid_: Image, rootfs
 
 ### Lifecycle
 
@@ -37,7 +63,7 @@ Bringing a suspended sandbox back to running: by restore when it has a snapshot,
 _Avoid_: Wake, start
 
 **Cold boot**:
-Starting a new instance from the sandbox's image, so the application initializes from scratch.
+Starting a new instance from its initial rootfs, so the application initializes from scratch.
 _Avoid_: Cold start
 
 **Restore**:

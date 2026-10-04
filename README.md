@@ -7,6 +7,8 @@ shortens it. It drives `runsc` directly
 background for that plan is in [docs/learn](docs/learn/README.md).
 
 - `crates/reprise-runtime`: cold boot, checkpoint and restore.
+- `crates/reprise-oci`: prepare rootfs from Nix closure artifacts
+  ([design](docs/design/nix-rootfs.md)).
 - `test-tools/`: the `memory-state` workload, built by `nix/`.
 
 Unit tests run on Linux and macOS:
