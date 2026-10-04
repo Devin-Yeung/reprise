@@ -67,10 +67,17 @@ pub struct Operation {
 /// the previous committed snapshot is untouched until then. If the commit fails
 /// the sandbox is [`Failed`](crate::SandboxState::Failed) and the previous
 /// snapshot is retained.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+///
+/// Construct with `Suspend::builder()`. `force` defaults to `false`, so
+/// in-flight executions drain. The idempotency key defaults to `None`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, typed_builder::TypedBuilder)]
 pub struct Suspend {
     /// Cancel in-flight executions instead of waiting for them to drain.
+    /// Defaults to `false`.
+    #[builder(default)]
     pub force: bool,
+    /// Optional deduplication key. Defaults to `None`.
+    #[builder(default, setter(strip_option, into))]
     pub idempotency_key: Option<IdempotencyKey>,
 }
 

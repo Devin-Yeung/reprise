@@ -122,7 +122,7 @@ pub trait SandboxService: Send + Sync {
         &self,
         execution: &ExecutionId,
         after: u64,
-        limit: usize,
+        limit: u32,
     ) -> impl Future<Output = Result<EventPage, Error>> + Send;
 
     /// Report what the configured runtime has proven it can do.

@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// One ability a runtime may prove during the startup probe.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum Capability {
     /// A suspended sandbox can be restored into the same container.
     SameContainerRestore,

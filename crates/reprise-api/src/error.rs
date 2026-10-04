@@ -12,6 +12,7 @@ use crate::sandbox::SandboxState;
 
 /// A service failure. A command's non-zero exit is not one of these.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     /// No such sandbox, execution or operation. HTTP 404, not retryable.
     #[error("{resource} not found")]
@@ -77,6 +78,7 @@ pub enum Error {
 
 /// The resource an [`Error::NotFound`] refers to.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Resource {
     Sandbox(SandboxId),
     Execution(ExecutionId),
@@ -96,6 +98,7 @@ impl std::fmt::Display for Resource {
 /// A sandbox request that the lifecycle state can forbid, as reported by
 /// [`Error::TransitionConflict`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum RequestKind {
     Execute,
     ReadFile,

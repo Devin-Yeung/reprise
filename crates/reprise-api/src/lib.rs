@@ -36,13 +36,14 @@ pub mod service;
 pub use capabilities::{Capabilities, Capability, RuntimeInfo};
 pub use error::{Error, RequestKind, Resource};
 pub use execution::{
-    Channel, EventPage, Execute, ExecuteBuilder, Execution, ExecutionEvent, ExecutionState,
+    Channel, EventPage, Execute, ExecuteBuilder, Execution, ExecutionEvent, ExecutionEventKind,
+    ExecutionState,
 };
 pub use files::{Digest, FileContent, FileVersion, ReadFile, WriteFile};
 pub use id::{ExecutionId, IdempotencyKey, OperationId, SandboxId, SnapshotId, TemplateId};
 pub use operation::{
     Destroy, DestroyBuilder, Operation, OperationKind, OperationResult, OperationState, Resume,
-    ResumeBuilder, Suspend,
+    ResumeBuilder, Suspend, SuspendBuilder,
 };
 pub use sandbox::{
     CreateSandbox, CreateSandboxBuilder, Limits, Sandbox, SandboxInfo, SandboxState,

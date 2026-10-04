@@ -134,25 +134,27 @@ pub struct Execute {
 }
 
 /// One item in an execution's output log.
-///
-/// `sequence` is per-execution, strictly increasing and gap-free. It is the
-/// cursor a caller resumes from.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ExecutionEvent {
+pub struct ExecutionEvent {
+    /// Per-execution, strictly increasing and gap-free. It is the cursor a
+    /// caller resumes from.
+    pub sequence: u64,
+    pub kind: ExecutionEventKind,
+}
+
+/// What an [`ExecutionEvent`] reports.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ExecutionEventKind {
     Output {
-        sequence: u64,
         channel: Channel,
         chunk: Vec<u8>,
     },
     /// A state change. The terminal status is also readable from the
     /// [`Execution`] itself.
-    Status {
-        sequence: u64,
-        state: ExecutionState,
-    },
+    Status(ExecutionState),
     /// Output retention dropped older events; reading before this point is no
     /// longer possible.
-    Truncated { sequence: u64 },
+    Truncated,
 }
 
 /// A resumable page of [`ExecutionEvent`]s.

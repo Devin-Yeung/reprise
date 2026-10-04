@@ -39,7 +39,7 @@ pub(super) async fn continuity<S: SandboxService>(service: &S, sandbox: &Sandbox
     );
 
     let suspend = service
-        .suspend(sandbox, Suspend::default())
+        .suspend(sandbox, Suspend::builder().build())
         .await
         .context("suspend")?;
     let suspended = wait_operation(service, suspend).await?;

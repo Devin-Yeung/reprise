@@ -1,5 +1,7 @@
 use anyhow::{Context, Result, bail, ensure};
-use reprise_api::{Channel, Execute, ExecutionEvent, ExecutionState, SandboxId, SandboxService};
+use reprise_api::{
+    Channel, Execute, ExecutionEventKind, ExecutionState, SandboxId, SandboxService,
+};
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
 
@@ -36,13 +38,13 @@ pub(super) async fn execute_successfully<S: SandboxService>(
             let empty = page.events.is_empty();
 
             for event in page.events {
-                match event {
-                    ExecutionEvent::Output { channel, chunk, .. } => match channel {
+                match event.kind {
+                    ExecutionEventKind::Output { channel, chunk } => match channel {
                         Channel::Stdout => stdout.extend(chunk),
                         Channel::Stderr => stderr.extend(chunk),
                     },
-                    ExecutionEvent::Truncated { .. } => bail!("execution output was truncated"),
-                    ExecutionEvent::Status { .. } => {}
+                    ExecutionEventKind::Truncated => bail!("execution output was truncated"),
+                    ExecutionEventKind::Status(_) => {}
                 }
             }
 
