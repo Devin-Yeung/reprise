@@ -12,6 +12,10 @@ publish = false
 # Docker is external infrastructure; ordinary workspace tests never select it.
 integration-tests = []
 
+[[test]]
+name = "registry"
+required-features = ["integration-tests"]
+
 [dependencies]
 anyhow = "1"
 bollard.workspace = true
