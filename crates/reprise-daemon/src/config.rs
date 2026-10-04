@@ -25,15 +25,17 @@ pub struct DaemonConfig {
     pub default_template: FixedTemplate,
 }
 
-/// Connection to a Docker Engine using a Unix socket.
+/// Connection to a Docker Engine.
 ///
-/// For remote development, this may be the local end of an externally managed
-/// SSH tunnel. Docker CLI contexts and SSH sessions are not managed here.
+/// The future daemon will interpret the endpoint using Bollard. Connectivity
+/// does not imply access to that machine's filesystem or checkpoint artifacts.
 #[derive(Clone, Debug, TypedBuilder)]
 pub struct DockerConfig {
-    /// Unix socket on the daemon host.
+    /// Explicit endpoint URI interpreted by Bollard.
+    ///
+    /// For example, `unix:///var/run/docker.sock` or `ssh://user@host`.
     #[builder(setter(into))]
-    pub socket: PathBuf,
+    pub host: String,
     /// Required sandbox runtime, normally `runsc`. Never fall back to runc.
     #[builder(setter(into))]
     pub runtime: String,

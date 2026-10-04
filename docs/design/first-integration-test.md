@@ -6,25 +6,28 @@ Explicit execution currently fails at fixture startup; it does not contact Docke
 ## Run
 
 Pull the published, digest-pinned [Reprise test image](test-image.md) on the target
-Docker endpoint first. Establish an external SSH Unix-socket tunnel if Docker
-is remote, then:
+Docker endpoint first, then:
 
 ```sh
-REPRISE_DOCKER_SOCKET=/tmp/reprise-lighthouse.sock \
+DOCKER_HOST=ssh://user@workstation \
 REPRISE_TEST_IMAGE=sha256:<loaded-image-id> \
   cargo test -p reprise-daemon --test checkpoint_restore -- --ignored --nocapture
 ```
 
-The socket variable is a Unix socket **path**, not a Docker context, SSH URL, or
-`unix://` URI. Both variables are required; there is no default Docker endpoint
-or fallback image. Use the local image ID obtained from the digest-pinned
-registry reference, not a mutable tag. The test is ignored in ordinary workspace runs because
-it requires external infrastructure.
+`DOCKER_HOST` is an explicit endpoint URI interpreted by Bollard. Both
+variables are required; no default endpoint or fallback image is selected.
+Use the local image ID obtained from the digest-pinned registry reference on
+that same endpoint. SSH requires local OpenSSH and remote `docker` on PATH.
+
+This is the only ignored test: concrete daemon startup and sandbox suspend/resume
+are not implemented. Its ignore marker tracks that missing implementation,
+not infrastructure availability. All implemented Docker integration tests use
+the `integration-tests` feature and fail when configured infrastructure is unavailable.
 
 ## Seam and workload
 
-The fixture will start the real daemon using the configured socket, a temporary
-local SQLite database and snapshot directory, and the preloaded
+The fixture will start the real daemon using the configured Docker host, a
+temporary local SQLite database and snapshot directory, and the preloaded
 `reprise-test-image`. The test image contains only test tools, not `reprised`.
 These host-side temporary directories are not container mounts. Remote
 checkpoint artifact transfer remains an implementation question; a forwarded
