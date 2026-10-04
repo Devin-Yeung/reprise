@@ -1,19 +1,19 @@
 # **Reprise** —  Pause an environment. Resume its state.
 
+Reprise measures how fast a gVisor sandbox comes back from a snapshot, and
+shortens it. It drives `runsc` directly
+([ADR 0001](docs/adr/0001-drive-runsc-directly.md)); the current plan is
+[Snapshot runtime](docs/design/snapshot-runtime.md). The operating-system
+background for that plan is in [docs/learn](docs/learn/README.md).
 
-Run ordinary development checks without Docker:
+- `crates/reprise-runtime`: cold boot, checkpoint and restore.
+- `test-tools/`: the `memory-state` workload, built by `nix/`.
+
+Unit tests run on Linux and macOS:
 
 ```sh
 cargo test --locked --workspace --all-targets
 ```
 
-Docker integration tests are selected explicitly:
-
-```sh
-DOCKER_HOST=ssh://user@workstation \
-  cargo test --locked --workspace --all-targets --features integration-tests
-```
-
-The target Engine must support `runsc`; missing configuration or infrastructure
-fails the selected tests. See [test fixtures](docs/design/test-support-crate.md)
-for registry-only checks and CI configuration.
+Anything that starts a sandbox needs Linux, root and runsc; see the plan's
+workstation setup.

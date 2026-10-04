@@ -13,7 +13,7 @@ jobs:
   rust:
     strategy:
       matrix:
-        os: [ubuntu-24.04, windows-2025]
+        os: [ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -25,30 +25,3 @@ jobs:
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo test --locked --workspace --all-targets
       - run: cargo test --locked --workspace --doc
-
-  docker-integration:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    env:
-      DOCKER_HOST: unix:///var/run/docker.sock
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.95.0
-        with:
-          components: clippy
-      - name: Install runsc
-        env:
-          GVISOR_RELEASE: release-20260928.0
-        run: |
-          # Keep all sidecar binaries with runsc, as required by this release.
-          base="https://github.com/google/gvisor/releases/download/$GVISOR_RELEASE"
-          curl --fail --location --retry 3 "$base/gvisor-x86_64.tar.zstd" --output gvisor-x86_64.tar.zstd
-          curl --fail --location --retry 3 "$base/SHA512SUMS" --output SHA512SUMS
-          sha512sum --check --ignore-missing SHA512SUMS
-          sudo tar --zstd -xf gvisor-x86_64.tar.zstd -C /usr/local/bin
-          sudo /usr/local/bin/runsc install
-          sudo systemctl reload docker
-          docker info --format '{{json .Runtimes}}' | jq -e 'has("runsc")'
-      - run: cargo clippy --locked --workspace --all-targets --features integration-tests -- -D warnings
-      - name: Run real Docker integration tests
-        run: cargo test --locked --workspace --all-targets --features integration-tests -- --nocapture
