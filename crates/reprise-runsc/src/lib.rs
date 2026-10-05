@@ -9,8 +9,9 @@
 //!
 //! # Interface draft
 //!
-//! Pure argv construction and container-ID validation are implemented.
-//! Public command methods in `client.rs` are still unimplemented and panic.
+//! Pure argv construction, container-ID validation, detached launch, state,
+//! wait, and deletion are implemented. Other public command methods are still
+//! deferred.
 //! Executing runsc needs Linux and the privileges required by the chosen
 //! configuration.
 //! TODO: implement the methods in `client.rs`: build each `Command`, execute its

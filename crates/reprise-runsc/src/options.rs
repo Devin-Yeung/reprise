@@ -1,3 +1,4 @@
+use std::os::fd::OwnedFd;
 use std::path::PathBuf;
 
 use typed_builder::TypedBuilder;
@@ -14,7 +15,7 @@ use typed_builder::TypedBuilder;
 ///     .io(ContainerIo::builder().stderr(OutputTarget::Null).build())
 ///     .build();
 /// assert_eq!(create.bundle, std::path::Path::new("/var/lib/reprise/bundle"));
-/// assert_eq!(create.io.stdout, OutputTarget::Inherit);
+/// assert!(matches!(create.io.stdout, OutputTarget::Inherit));
 /// ```
 ///
 /// The bundle must be supplied before building:
@@ -23,7 +24,7 @@ use typed_builder::TypedBuilder;
 /// use reprise_runsc::CreateOptions;
 /// let create = CreateOptions::builder().build();
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder)]
+#[derive(Debug, TypedBuilder)]
 pub struct CreateOptions {
     #[builder(setter(into))]
     pub bundle: PathBuf,
@@ -35,16 +36,20 @@ pub struct CreateOptions {
 }
 
 /// Output destinations established when creating a container. Input is `/dev/null`.
-/// Pipes are intentionally omitted: sandbox children can keep them open after
-/// the CLI exits, preventing an output collector from reaching EOF.
-#[derive(Clone, Debug, Default, PartialEq, Eq, TypedBuilder)]
+///
+/// A descriptor is deliberately one-shot. The caller transfers ownership to
+/// these launch options, and must release the options after launch when EOF is
+/// meaningful to an output collector. Sandbox descendants can retain a copy of
+/// the descriptor, so EOF only ends an output stream; it does not prove that a
+/// container has completed.
+#[derive(Debug, Default, TypedBuilder)]
 #[builder(field_defaults(default))]
 pub struct ContainerIo {
     pub stdout: OutputTarget,
     pub stderr: OutputTarget,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default)]
 pub enum OutputTarget {
     #[default]
     Inherit,
@@ -52,6 +57,13 @@ pub enum OutputTarget {
     /// Opens a host file for append, creating it if missing without truncation.
     /// The caller prepares its parent directory and owns retention of the file.
     File(PathBuf),
+    /// Transfers an already-open host descriptor to the launch configuration.
+    ///
+    /// `run_detached` duplicates it for runsc because launch options are
+    /// borrowed. Drop the options after a successful launch to close this
+    /// original descriptor and allow readers to observe EOF when runsc and the
+    /// sandbox have closed their copies.
+    Fd(OwnedFd),
 }
 
 /// Execution checkpoint options; these do not capture arbitrary external volumes.
@@ -121,7 +133,7 @@ pub enum Compression {
 /// let create = CreateOptions::builder().bundle("/bundle").build();
 /// let restore = RestoreOptions::builder().create(create).build();
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder)]
+#[derive(Debug, TypedBuilder)]
 pub struct RestoreOptions {
     /// Supplies the bundle and launch stdio if runsc needs to create a container.
     pub create: CreateOptions,
