@@ -14,6 +14,8 @@
 //! [`Mount`]: oci_spec::runtime::Mount
 
 mod error;
+pub mod filesystem;
 pub mod nix;
 
 pub use error::Error;
+pub use filesystem::{Bind, Layer, Rootfs, RootfsError};
