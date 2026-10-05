@@ -11,6 +11,10 @@
 - Design predictable APIs and keep documentation high-signal: briefly explain purpose and non-obvious behavior that affects callers' decisions, rather than restating predictable implementation details. Writing, maintaining, and reading documentation all cost effort: every sentence must earn its place. Long documentation goes unread.
 - Rustdoc must be self-contained: include the context needed to understand the documented API without relying on local Markdown files. Self-contained means understandable on its own, not exhaustive.
 
+## Pull request descriptions
+
+- Keep PR descriptions scan-first and decision-useful: use short bullets, lead with the change's scope and outcome, and include validation or non-goals only when they materially help reviewers assess the change. Describe the feature slice rather than enumerating implementation details.
+
 ## Design docs
 
 - Design docs (`docs/design/`) declare a lifecycle `status` in front matter: `draft` docs are the source of truth for intent and constraints, `implemented` docs defer to merged code, and `retired` docs record past decisions. Read `docs/design/README.md` before creating a design doc, landing one, or changing its status.
