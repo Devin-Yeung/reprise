@@ -119,7 +119,7 @@ mod tests {
         drop(create_options);
 
         let get_state = ExecOptions::builder()
-            .program(&bundle.memory_state)
+            .program(&bundle.memory_state_program)
             .args(["get", "--socket", "/run/memory-state.sock"].map(Into::into))
             .build();
         let deadline = Instant::now() + Duration::from_secs(10);

@@ -4,39 +4,41 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use oci_spec::runtime::{Process, Spec};
-use reprise_oci::{Layer, Rootfs, nix::NixClosure};
+use reprise_oci::{Layer, Rootfs, nix::RuntimeArtifact};
 
 /// An OCI bundle whose temporary rootfs remains alive while runsc uses it.
 pub struct PreparedBundle {
     pub bundle_dir: tempfile::TempDir,
-    pub memory_state: PathBuf,
+    /// The public command name that runsc resolves through the workload PATH.
+    pub memory_state_program: PathBuf,
 }
 
 impl PreparedBundle {
-    /// Builds a bundle that invokes `memory-state` from the test Nix closure.
+    /// Builds a bundle that resolves `memory-state` through the test runtime's
+    /// public command profile.
     ///
     /// `layers` express each workload's runtime filesystem contract, stacked
     /// over the closure's store objects. The version command needs none, while
     /// the socket server asks for a writable `/run` tmpfs.
     pub fn memory_state(arguments: &[&str], layers: impl IntoIterator<Item = Layer>) -> Self {
-        let closure = test_closure();
-        let memory_state = memory_state_binary(&closure);
+        let runtime = test_runtime();
         let bundle_dir = tempfile::tempdir().expect("failed to create bundle tempdir");
         let rootfs_dir = bundle_dir.path().join("rootfs");
         fs::create_dir_all(&rootfs_dir).expect("failed to create rootfs dir");
 
         let rootfs = Rootfs::new(&rootfs_dir)
             .and_then(|rootfs| {
-                rootfs.with_layers(std::iter::once(Layer::from(&closure)).chain(layers))
+                rootfs.with_layers(std::iter::once(Layer::from(&runtime)).chain(layers))
             })
             .expect("failed to compose OCI rootfs");
         rootfs.prepare().expect("failed to prepare OCI rootfs");
 
-        save_config(&rootfs, bundle_dir.path(), &memory_state, arguments);
+        let memory_state_program = PathBuf::from("memory-state");
+        save_config(&rootfs, bundle_dir.path(), &memory_state_program, arguments);
 
         Self {
             bundle_dir,
-            memory_state,
+            memory_state_program,
         }
     }
 
@@ -52,34 +54,24 @@ impl AsRef<Path> for PreparedBundle {
     }
 }
 
-fn test_closure() -> NixClosure {
-    let manifest_path = std::env::var_os("REPRISE_TEST_CLOSURE")
+fn test_runtime() -> RuntimeArtifact {
+    let artifact_directory = std::env::var_os("REPRISE_TEST_RUNTIME")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("result/store-paths"));
-    NixClosure::load(&manifest_path)
-        .unwrap_or_else(|err| panic!("failed to load Nix closure from {manifest_path:?}: {err}"))
+        .unwrap_or_else(|| PathBuf::from("result"));
+    RuntimeArtifact::load(&artifact_directory).unwrap_or_else(|err| {
+        panic!("failed to load Nix runtime artifact from {artifact_directory:?}: {err}")
+    })
 }
 
-fn memory_state_binary(closure: &NixClosure) -> PathBuf {
-    closure
-        .store_paths()
-        .iter()
-        .find(|path| {
-            path.file_name()
-                .is_some_and(|name| name.to_string_lossy().contains("reprise-test-tools"))
-        })
-        .expect("reprise-test-tools not found in closure store paths")
-        .join("bin/memory-state")
-}
-
-fn save_config(rootfs: &Rootfs, bundle_path: &Path, memory_state: &Path, arguments: &[&str]) {
+fn save_config(rootfs: &Rootfs, bundle_path: &Path, program: &Path, arguments: &[&str]) {
     let mut process = Process::default();
     process
         .set_args(Some(
-            std::iter::once(memory_state.to_str().expect("UTF-8").to_owned())
+            std::iter::once(program.to_str().expect("UTF-8").to_owned())
                 .chain(arguments.iter().map(|&arg| arg.to_owned()))
                 .collect(),
         ))
+        .set_env(Some(vec!["PATH=/bin".to_owned()]))
         .set_cwd(PathBuf::from("/"));
 
     let mut spec = Spec::default();
