@@ -3,7 +3,7 @@ use std::os::fd::AsFd;
 use std::path::PathBuf;
 use std::process::{Command as ProcessCommand, ExitStatus, Stdio};
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 use crate::command::{self, Command};
 use crate::{
@@ -25,10 +25,53 @@ struct StateResponse {
     oci_version: String,
     id: String,
     status: String,
+    #[serde(default, deserialize_with = "deserialize_state_pid")]
     pid: Option<u32>,
     bundle: PathBuf,
     #[serde(default)]
     annotations: BTreeMap<String, String>,
+}
+
+/// Decodes runsc's stopped-process marker without making it part of our API.
+///
+/// A state response uses `-1` when no process remains. The public state model
+/// represents that condition as `None`; accepting any other negative number
+/// would hide a malformed or changed runtime response.
+fn deserialize_state_pid<'de, D>(deserializer: D) -> Result<Option<u32>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw_pid = Option::<i64>::deserialize(deserializer)?;
+    match raw_pid {
+        None | Some(-1) => Ok(None),
+        Some(raw_pid) => u32::try_from(raw_pid).map(Some).map_err(|_| {
+            serde::de::Error::custom(format!("expected a non-negative u32 or -1, got {raw_pid}"))
+        }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::StateResponse;
+
+    #[test]
+    fn stopped_state_treats_runsc_negative_pid_sentinel_as_absent() {
+        // runsc writes -1 after the initial process has exited. It is not a
+        // process identifier, so callers must observe the same absence they
+        // would for an omitted PID rather than a runtime-specific sentinel.
+        let response: StateResponse = serde_json::from_str(
+            r#"{
+                "ociVersion": "1.1.0-rc.1",
+                "id": "reprise-18fb9a3128950be5",
+                "status": "stopped",
+                "pid": -1,
+                "bundle": "/tmp/reprise-bundle"
+            }"#,
+        )
+        .expect("runsc stopped-state response must decode");
+
+        assert_eq!(response.pid, None);
+    }
 }
 
 /// Configures launch stdio without leaking pipes to background sandbox processes.
