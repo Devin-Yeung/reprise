@@ -1,9 +1,67 @@
-use std::process::ExitStatus;
+use std::process::{Command as ProcessCommand, ExitStatus, Stdio};
 
+use serde::Deserialize;
+
+use crate::command::{self, Command};
 use crate::{
-    CheckpointOptions, ContainerExit, ContainerId, ContainerState, CreateOptions, DeleteOptions,
-    Error, RestoreOptions, RunscConfig, Version,
+    CheckpointOptions, ContainerExit, ContainerId, ContainerIo, ContainerState, CreateOptions,
+    DeleteOptions, Error, Invocation, OutputTarget, RestoreOptions, RunscConfig, Version,
 };
+
+#[derive(Deserialize)]
+struct WaitResponse {
+    id: String,
+    #[serde(rename = "exitStatus")]
+    exit_status: u32,
+}
+
+/// Configures launch stdio without leaking pipes to background sandbox processes.
+fn configure_stdio(
+    cmd: &mut ProcessCommand,
+    io: &ContainerIo,
+    invocation: &Invocation,
+) -> Result<(), Error> {
+    cmd.stdin(Stdio::null());
+    match &io.stdout {
+        OutputTarget::Inherit => {
+            cmd.stdout(Stdio::inherit());
+        }
+        OutputTarget::Null => {
+            cmd.stdout(Stdio::null());
+        }
+        OutputTarget::File(path) => {
+            let file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .map_err(|source| Error::Io {
+                    invocation: Box::new(invocation.clone()),
+                    source,
+                })?;
+            cmd.stdout(file);
+        }
+    }
+    match &io.stderr {
+        OutputTarget::Inherit => {
+            cmd.stderr(Stdio::inherit());
+        }
+        OutputTarget::Null => {
+            cmd.stderr(Stdio::null());
+        }
+        OutputTarget::File(path) => {
+            let file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .map_err(|source| Error::Io {
+                    invocation: Box::new(invocation.clone()),
+                    source,
+                })?;
+            cmd.stderr(file);
+        }
+    }
+    Ok(())
+}
 
 /// A runsc executable and configuration shared by its command invocations.
 ///
@@ -52,7 +110,33 @@ impl Runsc {
 
     /// Creates and starts a container with `run --detach`, without waiting for exit.
     pub fn run_detached(&self, id: &ContainerId, options: &CreateOptions) -> Result<(), Error> {
-        todo!()
+        let invocation = command::invocation(
+            &self.config,
+            Command::Run {
+                id: id.as_str(),
+                options,
+                detached: true,
+            },
+        );
+        let mut cmd = ProcessCommand::new(&invocation.executable);
+        cmd.args(&invocation.args);
+        configure_stdio(&mut cmd, &options.io, &invocation)?;
+
+        let status = cmd.status().map_err(|source| Error::Io {
+            invocation: Box::new(invocation.clone()),
+            source,
+        })?;
+
+        if !status.success() {
+            return Err(Error::Command {
+                invocation: Box::new(invocation),
+                status,
+                stdout: None,
+                stderr: None,
+            });
+        }
+
+        Ok(())
     }
 
     /// Saves execution state. The container stops unless `leave_running` is set.
@@ -84,12 +168,72 @@ impl Runsc {
     /// Waits for the container's initial process and decodes runsc's JSON result.
     /// The returned code is the workload result, distinct from the wait CLI's status.
     pub fn wait(&self, id: &ContainerId) -> Result<ContainerExit, Error> {
-        todo!()
+        let invocation = command::invocation(&self.config, Command::Wait { id: id.as_str() });
+        let mut cmd = ProcessCommand::new(&invocation.executable);
+        cmd.args(&invocation.args);
+
+        let output = cmd.output().map_err(|source| Error::Io {
+            invocation: Box::new(invocation.clone()),
+            source,
+        })?;
+
+        if !output.status.success() {
+            return Err(Error::Command {
+                invocation: Box::new(invocation),
+                status: output.status,
+                stdout: Some(output.stdout),
+                stderr: Some(output.stderr),
+            });
+        }
+
+        let response: WaitResponse =
+            serde_json::from_slice(&output.stdout).map_err(|err| Error::InvalidOutput {
+                invocation: Box::new(invocation.clone()),
+                reason: err.to_string(),
+                stdout: output.stdout.clone(),
+                stderr: output.stderr.clone(),
+            })?;
+
+        let container_id = ContainerId::new(&response.id).map_err(|err| Error::InvalidOutput {
+            invocation: Box::new(invocation),
+            reason: err.to_string(),
+            stdout: output.stdout,
+            stderr: output.stderr,
+        })?;
+
+        Ok(ContainerExit {
+            id: container_id,
+            code: response.exit_status,
+        })
     }
 
     /// Deletes runtime state. Force deletion also terminates a running container.
     /// It does not remove the caller's bundle, store objects, or checkpoints.
     pub fn delete(&self, id: &ContainerId, options: DeleteOptions) -> Result<(), Error> {
-        todo!()
+        let invocation = command::invocation(
+            &self.config,
+            Command::Delete {
+                id: id.as_str(),
+                options,
+            },
+        );
+        let mut cmd = ProcessCommand::new(&invocation.executable);
+        cmd.args(&invocation.args);
+
+        let output = cmd.output().map_err(|source| Error::Io {
+            invocation: Box::new(invocation.clone()),
+            source,
+        })?;
+
+        if !output.status.success() {
+            return Err(Error::Command {
+                invocation: Box::new(invocation),
+                status: output.status,
+                stdout: Some(output.stdout),
+                stderr: Some(output.stderr),
+            });
+        }
+
+        Ok(())
     }
 }
