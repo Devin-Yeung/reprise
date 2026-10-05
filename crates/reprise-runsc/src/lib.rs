@@ -21,9 +21,9 @@
 //! TODO: add command timeouts/cancellation before using this interface for a
 //! supervised service; blocking commands currently have no deadline contract.
 //!
-//! Only the launch, inspection, checkpoint, and cleanup operations needed for
-//! the first execution experiment are modeled. Exec, signal delivery, console
-//! sockets, FD passing, and filesystem-only checkpoints are deferred.
+//! The interface models container lifecycle plus a minimal `exec` for
+//! short-lived commands in a running container. Signal delivery, console
+//! sockets, FD passing, and filesystem-only checkpoints remain deferred.
 
 #![expect(
     unused_variables,
@@ -43,7 +43,9 @@ pub use config::{
 };
 pub use error::{Error, InvalidContainerId, Invocation, Operation};
 pub use options::{
-    CheckpointOptions, Compression, ContainerIo, CreateOptions, DeleteOptions, OutputTarget,
-    RestoreOptions,
+    CheckpointOptions, Compression, ContainerIo, CreateOptions, DeleteOptions, ExecOptions,
+    OutputTarget, RestoreOptions,
 };
-pub use types::{ContainerExit, ContainerId, ContainerState, ContainerStatus, Version};
+pub use types::{
+    ContainerExit, ContainerId, ContainerState, ContainerStatus, ExecutionOutput, Version,
+};

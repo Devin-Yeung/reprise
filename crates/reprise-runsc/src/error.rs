@@ -45,6 +45,7 @@ pub enum Operation {
     Create,
     Start,
     Run,
+    Exec,
     Checkpoint,
     Restore,
     State,

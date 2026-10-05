@@ -140,3 +140,15 @@ pub struct ContainerExit {
     /// wait status and cannot unambiguously distinguish signals from exit codes.
     pub code: u32,
 }
+
+/// Result of one transient process executed in a running container.
+///
+/// A nonzero status is preserved as a result because it can be the executed
+/// program's intended outcome. The caller owns interpretation of stdout and
+/// stderr; this type does not parse workload-specific protocols.
+#[derive(Debug)]
+pub struct ExecutionOutput {
+    pub status: std::process::ExitStatus,
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
+}
