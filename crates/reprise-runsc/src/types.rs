@@ -17,8 +17,84 @@ impl ContainerId {
         todo!()
     }
 
+    /// Generates a random valid container identifier prefixed with `reprise-`.
+    pub fn generate() -> Self {
+        todo!()
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl std::fmt::Display for ContainerId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl AsRef<str> for ContainerId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn valid_container_ids() {
+        for id in [
+            "a",
+            "0",
+            "Z",
+            "container1",
+            "12345",
+            "a-b_c.1+2",
+            "reprise-benchmark.1",
+        ] {
+            assert_eq!(ContainerId::new(id).unwrap().as_str(), id);
+        }
+    }
+
+    #[test]
+    fn rejected_container_ids() {
+        for id in [
+            "",
+            "-foo",
+            "--detach",
+            "_foo",
+            ".foo",
+            "+foo",
+            "foo/bar",
+            "/root",
+            "..",
+            "foo bar",
+            " ",
+            "容器",
+            "café",
+            "foo@bar",
+            "foo:bar",
+            "foo=bar",
+        ] {
+            assert_eq!(
+                ContainerId::new(id),
+                Err(InvalidContainerId {
+                    value: id.to_owned()
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn generated_id_is_valid_and_unique() {
+        let id1 = ContainerId::generate();
+        let id2 = ContainerId::generate();
+        assert_ne!(id1, id2);
+        assert!(id1.as_str().starts_with("reprise-"));
+        assert_eq!(ContainerId::new(id1.as_str()), Ok(id1));
+        assert_eq!(ContainerId::new(id2.as_str()), Ok(id2));
     }
 }
 
