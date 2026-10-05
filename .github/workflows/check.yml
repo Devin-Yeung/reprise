@@ -25,3 +25,27 @@ jobs:
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo test --locked --workspace --all-targets
       - run: cargo test --locked --workspace --doc
+
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/determinate-nix-action@v3
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: dtolnay/rust-toolchain@1.95.0
+      - name: Build test workload closure
+        run: nix build .#reprise-test-closure --out-link result
+      - name: Build runsc
+        run: nix build .#runsc --out-link result-runsc
+      - name: Build smoke integration test binary
+        run: cargo test -p reprise-runsc --test smoke --features integration-tests --no-run
+      - name: Run smoke integration test
+        env:
+          REPRISE_RUNSC_BIN: ${{ github.workspace }}/result-runsc/bin/runsc
+          REPRISE_TEST_CLOSURE: ${{ github.workspace }}/result/store-paths
+        run: |
+          sudo -E env "PATH=$PATH" \
+            "REPRISE_RUNSC_BIN=$REPRISE_RUNSC_BIN" \
+            "REPRISE_TEST_CLOSURE=$REPRISE_TEST_CLOSURE" \
+            $(which cargo) test -p reprise-runsc --test smoke --features integration-tests -- --nocapture
