@@ -21,6 +21,7 @@ func newRootCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "memory-state",
 		Short:         "Run the in-memory test workload",
+		Version:       "0.1.0",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
@@ -35,5 +36,16 @@ func newRootCommand() *cobra.Command {
 	}
 	serve.Flags().StringVar(&listen, "listen", "127.0.0.1:8765", "TCP address to listen on")
 	root.AddCommand(serve)
+
+	version := &cobra.Command{
+		Use:   "version",
+		Short: "Print the memory-state version",
+		Args:  cobra.NoArgs,
+		Run: func(cmd *cobra.Command, _ []string) {
+			fmt.Fprintln(cmd.OutOrStdout(), "0.1.0")
+		},
+	}
+	root.AddCommand(version)
+
 	return root
 }
