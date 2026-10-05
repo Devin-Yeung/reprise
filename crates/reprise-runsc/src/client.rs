@@ -8,8 +8,8 @@ use serde::{Deserialize, Deserializer};
 use crate::command::{self, Command};
 use crate::{
     CheckpointOptions, ContainerExit, ContainerId, ContainerIo, ContainerState, ContainerStatus,
-    CreateOptions, DeleteOptions, Error, Invocation, OutputTarget, RestoreOptions, RunscConfig,
-    Version,
+    CreateOptions, DeleteOptions, Error, ExecOptions, ExecutionOutput, Invocation, OutputTarget,
+    RestoreOptions, RunscConfig, Version,
 };
 
 #[derive(Deserialize)]
@@ -216,6 +216,36 @@ impl Runsc {
         }
 
         Ok(())
+    }
+
+    /// Executes one transient process in a running container and captures it.
+    ///
+    /// The initial process remains responsible for the container's lifetime.
+    /// A nonzero result is returned rather than promoted to [`Error`], matching
+    /// [`Runsc::run`]: runsc forwards an executed program's exit status through
+    /// its own CLI status and does not provide a portable way to distinguish it
+    /// from a runtime-side failure using status alone.
+    pub fn exec(&self, id: &ContainerId, options: &ExecOptions) -> Result<ExecutionOutput, Error> {
+        let invocation = command::invocation(
+            &self.config,
+            Command::Exec {
+                id: id.as_str(),
+                options,
+            },
+        );
+        let output = ProcessCommand::new(&invocation.executable)
+            .args(&invocation.args)
+            .output()
+            .map_err(|source| Error::Io {
+                invocation: Box::new(invocation),
+                source,
+            })?;
+
+        Ok(ExecutionOutput {
+            status: output.status,
+            stdout: output.stdout,
+            stderr: output.stderr,
+        })
     }
 
     /// Saves execution state. The container stops unless `leave_running` is set.
