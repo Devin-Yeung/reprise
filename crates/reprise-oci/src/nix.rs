@@ -1,10 +1,8 @@
-//! Nix runtime closures represented as OCI read-only bind mounts.
+//! Nix runtime closures represented as a read-only bind-mount layer.
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use oci_spec::runtime::{Mount, Root};
-
-use crate::Error;
+use crate::{Bind, Error, Layer};
 
 /// Store objects listed by a complete local Nix runtime closure artifact.
 ///
@@ -24,55 +22,24 @@ impl NixClosure {
         Ok(Self { store_paths })
     }
 
-    /// Creates or reuses a shared base directory without copying store objects.
-    /// Prepares `nix/store` inside it; individual mount points and runtime
-    /// directories remain the caller's responsibility.
-    /// The caller owns the directory and keeps it available for its containers.
-    pub fn to_rootfs(&self, root: impl AsRef<Path>) -> Result<NixBasedRootFS, Error> {
-        fs::create_dir_all(root.as_ref().join("nix/store"))?;
-        Ok(NixBasedRootFS {
-            root: fs::canonicalize(root)?,
-            closure: self.clone(),
-        })
-    }
-
     /// Store objects in manifest order.
     pub fn store_paths(&self) -> &[PathBuf] {
         &self.store_paths
     }
 }
 
-/// A shared base directory and the closure mounted into its container view.
+/// Exposes the closure as read-only binds of each store object at its own path.
 ///
-/// Dropping this value does not remove the directory or its dependencies. The
-/// caller provides writable locations and runtime mounts in the complete spec.
-pub struct NixBasedRootFS {
-    root: PathBuf,
-    closure: NixClosure,
-}
-
-impl NixBasedRootFS {
-    /// Read-only base root using the absolute path of the prepared directory.
-    pub fn oci_root(&self) -> Root {
-        let mut root = Root::default();
-        root.set_path(self.root.clone()).set_readonly(Some(true));
-        root
-    }
-
-    /// Read-only store-object mounts, in closure manifest order.
-    pub fn oci_mounts(&self) -> Vec<Mount> {
-        self.closure
-            .store_paths()
-            .iter()
-            .map(|path| {
-                let mut mount = Mount::default();
-                mount
-                    .set_source(Some(path.clone()))
-                    .set_destination(path.clone())
-                    .set_typ(Some("bind".into()))
-                    .set_options(Some(vec!["bind".into(), "ro".into()]));
-                mount
-            })
-            .collect()
+/// Objects are bound individually, so the container sees only the closure and
+/// not the host's whole store. Stack the layer on a [`Rootfs`](crate::Rootfs)
+/// and call `prepare` to create the mount targets.
+impl From<&NixClosure> for Layer {
+    fn from(closure: &NixClosure) -> Self {
+        Layer::binds(
+            closure
+                .store_paths()
+                .iter()
+                .map(|path| Bind::read_only(path, path)),
+        )
     }
 }

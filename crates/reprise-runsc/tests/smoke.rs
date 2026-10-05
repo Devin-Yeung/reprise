@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use oci_spec::runtime::{Mount, Process, Spec};
 use reprise_oci::nix::NixClosure;
+use reprise_oci::{Layer, Rootfs};
 use reprise_runsc::{
     ContainerId, ContainerIo, ContainerStatus, CreateOptions, DeleteOptions, OutputTarget, Runsc,
     RunscConfig,
@@ -27,9 +28,13 @@ fn smoke_run_wait_and_delete() {
         .unwrap_or_else(|err| panic!("failed to load Nix closure from {manifest_path:?}: {err}"));
 
     let base_dir = tempfile::tempdir().expect("failed to create base tempdir");
-    let rootfs = closure
-        .to_rootfs(base_dir.path())
-        .expect("failed to prepare rootfs");
+    let rootfs = Rootfs::new(base_dir.path())
+        .expect("rootfs root must be absolute")
+        .with_layers([Layer::from(&closure)])
+        .expect("closure layer must not conflict with itself");
+    rootfs
+        .prepare()
+        .expect("failed to create rootfs mount targets");
 
     // Locate memory-state in closure store paths
     let test_tools_path = closure
@@ -45,7 +50,7 @@ fn smoke_run_wait_and_delete() {
 
     // Construct OCI bundle
     let bundle_dir = tempfile::tempdir().expect("failed to create bundle tempdir");
-    let mut mounts = rootfs.oci_mounts();
+    let mut mounts = rootfs.mounts();
 
     let mut proc_mount = Mount::default();
     proc_mount
@@ -70,7 +75,7 @@ fn smoke_run_wait_and_delete() {
         .set_cwd(PathBuf::from("/"));
 
     let mut spec = Spec::default();
-    spec.set_root(Some(rootfs.oci_root()))
+    spec.set_root(Some(rootfs.root().clone()))
         .set_mounts(Some(mounts))
         .set_process(Some(process));
 
