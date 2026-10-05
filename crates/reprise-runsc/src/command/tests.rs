@@ -13,11 +13,11 @@ fn exec_keeps_the_container_id_before_the_program_and_arguments() {
     // `runsc exec` addresses a running instance before naming the transient
     // process. Keeping that order explicit prevents a program path from ever
     // being interpreted as another container identifier.
-    let config = RunscConfig {
-        executable: "/opt/gvisor/runsc".into(),
-        state_root: "/var/lib/reprise/runsc".into(),
-        options: GlobalOptions::builder().network(Network::None).build(),
-    };
+    let config = RunscConfig::builder()
+        .executable("/opt/gvisor/runsc")
+        .state_root("/var/lib/reprise/runsc")
+        .options(GlobalOptions::builder().network(Network::None).build())
+        .build();
     let options = ExecOptions::builder()
         .program("/nix/store/test-tools/bin/memory-state")
         .args(["get", "--socket", "/run/memory-state.sock"].map(Into::into))
@@ -52,11 +52,11 @@ fn exec_keeps_the_container_id_before_the_program_and_arguments() {
 /// TODO: Add focused snapshots when another supported workflow needs its own contract.
 #[test]
 fn configured_restore() {
-    let config = RunscConfig {
-        executable: "/opt/gvisor/runsc".into(),
-        state_root: "/var/lib/reprise/runsc".into(),
-        options: GlobalOptions::builder().platform(Platform::Kvm).build(),
-    };
+    let config = RunscConfig::builder()
+        .executable("/opt/gvisor/runsc")
+        .state_root("/var/lib/reprise/runsc")
+        .options(GlobalOptions::builder().platform(Platform::Kvm).build())
+        .build();
     let options = RestoreOptions::builder()
         .create(
             CreateOptions::builder()
