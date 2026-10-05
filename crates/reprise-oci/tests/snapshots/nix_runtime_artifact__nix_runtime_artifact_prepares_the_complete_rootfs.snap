@@ -1,0 +1,108 @@
+---
+source: crates/reprise-oci/tests/nix_runtime_artifact.rs
+assertion_line: 35
+expression: environment
+---
+{
+  "mounts": [
+    {
+      "destination": "/nix/store/[store object 1]",
+      "options": [
+        "bind",
+        "ro"
+      ],
+      "source": "/nix/store/[store object 1]",
+      "type": "bind"
+    },
+    {
+      "destination": "/nix/store/[store object 2]",
+      "options": [
+        "bind",
+        "ro"
+      ],
+      "source": "/nix/store/[store object 2]",
+      "type": "bind"
+    },
+    {
+      "destination": "/nix/store/[store object 3]",
+      "options": [
+        "bind",
+        "ro"
+      ],
+      "source": "/nix/store/[store object 3]",
+      "type": "bind"
+    },
+    {
+      "destination": "/nix/store/[store object 4]",
+      "options": [
+        "bind",
+        "ro"
+      ],
+      "source": "/nix/store/[store object 4]",
+      "type": "bind"
+    },
+    {
+      "destination": "/nix/store/[store object 5]",
+      "options": [
+        "bind",
+        "ro"
+      ],
+      "source": "/nix/store/[store object 5]",
+      "type": "bind"
+    },
+    {
+      "destination": "/nix/store/[store object 6]",
+      "options": [
+        "bind",
+        "ro"
+      ],
+      "source": "/nix/store/[store object 6]",
+      "type": "bind"
+    },
+    {
+      "destination": "/nix/store/[store object 7]",
+      "options": [
+        "bind",
+        "ro"
+      ],
+      "source": "/nix/store/[store object 7]",
+      "type": "bind"
+    },
+    {
+      "destination": "/nix/store/[store object 8]",
+      "options": [
+        "bind",
+        "ro"
+      ],
+      "source": "/nix/store/[store object 8]",
+      "type": "bind"
+    },
+    {
+      "destination": "/bin",
+      "options": [
+        "bind",
+        "ro"
+      ],
+      "source": "/nix/store/[store object 2]/bin",
+      "type": "bind"
+    }
+  ],
+  "path_environment": "PATH=/bin",
+  "prepared_paths": [
+    "/bin",
+    "/nix",
+    "/nix/store",
+    "/nix/store/[store object 1]",
+    "/nix/store/[store object 2]",
+    "/nix/store/[store object 3]",
+    "/nix/store/[store object 4]",
+    "/nix/store/[store object 5]",
+    "/nix/store/[store object 6]",
+    "/nix/store/[store object 7]",
+    "/nix/store/[store object 8]"
+  ],
+  "root": {
+    "path": "[rootfs]",
+    "readonly": true
+  }
+}
