@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::os::fd::OwnedFd;
 use std::path::PathBuf;
 
@@ -64,6 +65,31 @@ pub enum OutputTarget {
     /// original descriptor and allow readers to observe EOF when runsc and the
     /// sandbox have closed their copies.
     Fd(OwnedFd),
+}
+
+/// One short-lived process executed in an already-running container.
+///
+/// The container's initial process keeps the instance alive. This request adds
+/// one sibling process in that same instance; it neither creates a bundle nor
+/// changes the initial process's stdio. Environment, user, terminal, and JSON
+/// process-spec configuration are deliberately deferred until a caller needs
+/// them.
+///
+/// ```
+/// use reprise_runsc::ExecOptions;
+///
+/// let exec = ExecOptions::builder()
+///     .program("/nix/store/example/bin/memory-state")
+///     .args(["get", "--socket", "/run/memory-state.sock"].map(Into::into))
+///     .build();
+/// assert_eq!(exec.args.len(), 3);
+/// ```
+#[derive(Debug, TypedBuilder)]
+pub struct ExecOptions {
+    #[builder(setter(into))]
+    pub program: PathBuf,
+    #[builder(default, setter(into))]
+    pub args: Vec<OsString>,
 }
 
 /// Execution checkpoint options; these do not capture arbitrary external volumes.

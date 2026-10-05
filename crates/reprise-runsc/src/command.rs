@@ -8,8 +8,8 @@
 use std::{ffi::OsString, path::Path};
 
 use crate::{
-    CheckpointOptions, Compression, CreateOptions, DeleteOptions, FileAccess, Invocation, Network,
-    Operation, Overlay, OverlayBacking, Platform, RestoreOptions, RunscConfig,
+    CheckpointOptions, Compression, CreateOptions, DeleteOptions, ExecOptions, FileAccess,
+    Invocation, Network, Operation, Overlay, OverlayBacking, Platform, RestoreOptions, RunscConfig,
 };
 
 #[derive(Debug)]
@@ -26,6 +26,10 @@ pub(crate) enum Command<'a> {
         id: &'a str,
         options: &'a CreateOptions,
         detached: bool,
+    },
+    Exec {
+        id: &'a str,
+        options: &'a ExecOptions,
     },
     Checkpoint {
         id: &'a str,
@@ -81,6 +85,13 @@ pub(crate) fn invocation(config: &RunscConfig, command: Command<'_>) -> Invocati
             push_flag(&mut args, "--detach", detached);
             push_id(&mut args, id);
             Operation::Run
+        }
+        Command::Exec { id, options } => {
+            args.push("exec".into());
+            push_id(&mut args, id);
+            args.push(options.program.as_os_str().to_owned());
+            args.extend(options.args.iter().cloned());
+            Operation::Exec
         }
         Command::Checkpoint { id, options } => {
             args.push("checkpoint".into());
