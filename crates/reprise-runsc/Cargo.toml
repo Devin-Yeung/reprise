@@ -9,6 +9,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+getrandom = "0.4.3"
 thiserror.workspace = true
 typed-builder = "0.23.2"
 
