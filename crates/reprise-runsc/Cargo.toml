@@ -8,13 +8,21 @@ license.workspace = true
 repository.workspace = true
 publish = false
 
+[features]
+integration-tests = []
+
 [dependencies]
 getrandom = "0.4.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 thiserror.workspace = true
 typed-builder = "0.23.2"
 
 [dev-dependencies]
 insta = "1.49.0"
+oci-spec = "0.10.0"
+reprise-oci = { path = "../reprise-oci" }
+tempfile = "3.27.0"
 
 [lints]
 workspace = true
