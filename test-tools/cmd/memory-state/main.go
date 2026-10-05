@@ -2,6 +2,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -25,17 +26,29 @@ func newRootCommand() *cobra.Command {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
-	var listen string
+	var socket string
 	serve := &cobra.Command{
 		Use:   "serve",
-		Short: "Serve the workload state over HTTP in the foreground",
+		Short: "Keep the workload state alive over a Unix socket",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return memorystate.Serve(listen)
+			listener, err := memorystate.Listen(socket)
+			if err != nil {
+				return err
+			}
+			defer listener.Close()
+			return memorystate.Serve(listener)
 		},
 	}
-	serve.Flags().StringVar(&listen, "listen", "127.0.0.1:8765", "TCP address to listen on")
+	serve.Flags().StringVar(&socket, "socket", "/run/memory-state.sock", "Unix socket to listen on")
 	root.AddCommand(serve)
+
+	root.AddCommand(socketCommand("get", "Read the running workload state", cobra.NoArgs, func(socket string, _ []string) (memorystate.State, error) {
+		return memorystate.Get(socket)
+	}))
+	root.AddCommand(socketCommand("mutate VALUE", "Replace the value and advance its revision", cobra.ExactArgs(1), func(socket string, args []string) (memorystate.State, error) {
+		return memorystate.Mutate(socket, args[0])
+	}))
 
 	version := &cobra.Command{
 		Use:   "version",
@@ -48,4 +61,22 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(version)
 
 	return root
+}
+
+func socketCommand(use, short string, args cobra.PositionalArgs, invoke func(string, []string) (memorystate.State, error)) *cobra.Command {
+	var socket string
+	command := &cobra.Command{
+		Use:   use,
+		Short: short,
+		Args:  args,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			state, err := invoke(socket, args)
+			if err != nil {
+				return err
+			}
+			return json.NewEncoder(cmd.OutOrStdout()).Encode(state)
+		},
+	}
+	command.Flags().StringVar(&socket, "socket", "/run/memory-state.sock", "Unix socket of the running workload")
+	return command
 }

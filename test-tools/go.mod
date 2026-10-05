@@ -2,10 +2,7 @@ module reprise/test-tools
 
 go 1.25.0
 
-require (
-	github.com/go-chi/chi/v5 v5.2.1
-	github.com/spf13/cobra v1.9.1
-)
+require github.com/spf13/cobra v1.9.1
 
 require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
