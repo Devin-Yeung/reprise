@@ -14,12 +14,32 @@ pub struct ContainerId(String);
 impl ContainerId {
     /// Validates an identifier without probing runsc state.
     pub fn new(value: impl Into<String>) -> Result<Self, InvalidContainerId> {
-        todo!()
+        let value = value.into();
+        let mut chars = value.chars();
+        let valid = match chars.next() {
+            Some(first) if first.is_ascii_alphanumeric() => {
+                chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '+' | '-'))
+            }
+            _ => false,
+        };
+        if valid {
+            Ok(Self(value))
+        } else {
+            Err(InvalidContainerId { value })
+        }
     }
 
     /// Generates a random valid container identifier prefixed with `reprise-`.
     pub fn generate() -> Self {
-        todo!()
+        let mut bytes = [0u8; 8];
+        getrandom::fill(&mut bytes).expect("system randomness failed");
+        let mut value = String::with_capacity(24);
+        value.push_str("reprise-");
+        for b in bytes {
+            use std::fmt::Write;
+            let _ = write!(&mut value, "{b:02x}");
+        }
+        Self(value)
     }
 
     pub fn as_str(&self) -> &str {
@@ -61,22 +81,8 @@ mod tests {
     #[test]
     fn rejected_container_ids() {
         for id in [
-            "",
-            "-foo",
-            "--detach",
-            "_foo",
-            ".foo",
-            "+foo",
-            "foo/bar",
-            "/root",
-            "..",
-            "foo bar",
-            " ",
-            "容器",
-            "café",
-            "foo@bar",
-            "foo:bar",
-            "foo=bar",
+            "", "-foo", "--detach", "_foo", ".foo", "+foo", "foo/bar", "/root", "..", "foo bar",
+            " ", "容器", "café", "foo@bar", "foo:bar", "foo=bar",
         ] {
             assert_eq!(
                 ContainerId::new(id),
