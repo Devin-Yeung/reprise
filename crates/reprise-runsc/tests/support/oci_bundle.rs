@@ -1,26 +1,27 @@
-//! OCI bundle construction shared by runsc integration tests.
+//! Test-image preparation shared by runsc integration tests.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use oci_spec::runtime::{Process, Spec};
 use reprise_oci::{Layer, Rootfs, nix::RuntimeArtifact};
 
-/// An OCI bundle whose temporary rootfs remains alive while runsc uses it.
-pub struct PreparedBundle {
-    pub bundle_dir: tempfile::TempDir,
-    /// The public command name that runsc resolves through the workload PATH.
-    pub memory_state_program: PathBuf,
+/// A prepared test image whose temporary rootfs remains alive while runsc uses it.
+///
+/// The image deliberately contains no process configuration. Callers choose the
+/// OCI process, including its program, arguments, and any other spec fields.
+pub struct PreparedImage {
+    bundle_dir: tempfile::TempDir,
+    rootfs: Rootfs,
+    path_environment: String,
 }
 
-impl PreparedBundle {
-    /// Builds a bundle that resolves `memory-state` through the test runtime's
-    /// public command profile.
+impl PreparedImage {
+    /// Prepares the test runtime image with `layers` stacked above its closure.
     ///
-    /// `layers` express each workload's runtime filesystem contract, stacked
-    /// over the closure's store objects. The version command needs none, while
-    /// the socket server asks for a writable `/run` tmpfs.
-    pub fn memory_state(arguments: &[&str], layers: impl IntoIterator<Item = Layer>) -> Self {
+    /// The caller writes `config.json` using [`Self::rootfs`] and
+    /// [`Self::path_environment`]. This keeps the image independent of a
+    /// particular test workload.
+    pub fn create(layers: impl IntoIterator<Item = Layer>) -> Self {
         let runtime = test_runtime();
         let path_environment = runtime.path_environment();
         let bundle_dir = tempfile::tempdir().expect("failed to create bundle tempdir");
@@ -34,28 +35,30 @@ impl PreparedBundle {
             .expect("failed to compose OCI rootfs");
         rootfs.prepare().expect("failed to prepare OCI rootfs");
 
-        let memory_state_program = PathBuf::from("memory-state");
-        save_config(
-            &rootfs,
-            bundle_dir.path(),
-            &memory_state_program,
-            &path_environment,
-            arguments,
-        );
-
         Self {
             bundle_dir,
-            memory_state_program,
+            rootfs,
+            path_environment,
         }
     }
 
-    /// Path to the bundle directory.
+    /// Directory where the caller writes the OCI `config.json`.
     pub fn path(&self) -> &Path {
         self.bundle_dir.path()
     }
+
+    /// Root filesystem and mounts to place in the caller's OCI spec.
+    pub fn rootfs(&self) -> &Rootfs {
+        &self.rootfs
+    }
+
+    /// `PATH` environment entry for commands exported by the test runtime.
+    pub fn path_environment(&self) -> &str {
+        &self.path_environment
+    }
 }
 
-impl AsRef<Path> for PreparedBundle {
+impl AsRef<Path> for PreparedImage {
     fn as_ref(&self) -> &Path {
         self.path()
     }
@@ -68,29 +71,4 @@ fn test_runtime() -> RuntimeArtifact {
     RuntimeArtifact::load(&artifact_directory).unwrap_or_else(|err| {
         panic!("failed to load Nix runtime artifact from {artifact_directory:?}: {err}")
     })
-}
-
-fn save_config(
-    rootfs: &Rootfs,
-    bundle_path: &Path,
-    program: &Path,
-    path_environment: &str,
-    arguments: &[&str],
-) {
-    let mut process = Process::default();
-    process
-        .set_args(Some(
-            std::iter::once(program.to_str().expect("UTF-8").to_owned())
-                .chain(arguments.iter().map(|&arg| arg.to_owned()))
-                .collect(),
-        ))
-        .set_env(Some(vec![path_environment.to_owned()]))
-        .set_cwd(PathBuf::from("/"));
-
-    let mut spec = Spec::default();
-    spec.set_root(Some(rootfs.root().clone()))
-        .set_mounts(Some(rootfs.mounts()))
-        .set_process(Some(process));
-    spec.save(bundle_path.join("config.json"))
-        .expect("failed to save bundle config.json");
 }
