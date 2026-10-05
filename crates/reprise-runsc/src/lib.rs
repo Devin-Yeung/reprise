@@ -9,14 +9,14 @@
 //!
 //! # Interface draft
 //!
-//! Pure argv construction is implemented and covered by one configured restore
-//! snapshot. Public command methods and container-ID validation are still
-//! unimplemented and panic. Executing runsc needs Linux and the privileges
-//! required by the chosen configuration.
-//! TODO: implement `ContainerId::new` validation and the methods in `client.rs`:
-//! build each `Command`, execute its `Invocation` without a shell, route launch
-//! stdio, and handle operation-specific status and output. Then validate lifecycle
-//! behavior against a pinned runsc on Linux.
+//! Pure argv construction and container-ID validation are implemented.
+//! Public command methods in `client.rs` are still unimplemented and panic.
+//! Executing runsc needs Linux and the privileges required by the chosen
+//! configuration.
+//! TODO: implement the methods in `client.rs`: build each `Command`, execute its
+//! `Invocation` without a shell, route launch stdio, and handle
+//! operation-specific status and output. Then validate lifecycle behavior
+//! against a pinned runsc on Linux.
 //! TODO: add command timeouts/cancellation before using this interface for a
 //! supervised service; blocking commands currently have no deadline contract.
 //!
