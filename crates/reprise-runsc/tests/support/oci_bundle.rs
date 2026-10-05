@@ -22,6 +22,7 @@ impl PreparedBundle {
     /// the socket server asks for a writable `/run` tmpfs.
     pub fn memory_state(arguments: &[&str], layers: impl IntoIterator<Item = Layer>) -> Self {
         let runtime = test_runtime();
+        let path_environment = runtime.path_environment();
         let bundle_dir = tempfile::tempdir().expect("failed to create bundle tempdir");
         let rootfs_dir = bundle_dir.path().join("rootfs");
         fs::create_dir_all(&rootfs_dir).expect("failed to create rootfs dir");
@@ -34,7 +35,13 @@ impl PreparedBundle {
         rootfs.prepare().expect("failed to prepare OCI rootfs");
 
         let memory_state_program = PathBuf::from("memory-state");
-        save_config(&rootfs, bundle_dir.path(), &memory_state_program, arguments);
+        save_config(
+            &rootfs,
+            bundle_dir.path(),
+            &memory_state_program,
+            &path_environment,
+            arguments,
+        );
 
         Self {
             bundle_dir,
@@ -63,7 +70,13 @@ fn test_runtime() -> RuntimeArtifact {
     })
 }
 
-fn save_config(rootfs: &Rootfs, bundle_path: &Path, program: &Path, arguments: &[&str]) {
+fn save_config(
+    rootfs: &Rootfs,
+    bundle_path: &Path,
+    program: &Path,
+    path_environment: &str,
+    arguments: &[&str],
+) {
     let mut process = Process::default();
     process
         .set_args(Some(
@@ -71,7 +84,7 @@ fn save_config(rootfs: &Rootfs, bundle_path: &Path, program: &Path, arguments: &
                 .chain(arguments.iter().map(|&arg| arg.to_owned()))
                 .collect(),
         ))
-        .set_env(Some(vec!["PATH=/bin".to_owned()]))
+        .set_env(Some(vec![path_environment.to_owned()]))
         .set_cwd(PathBuf::from("/"));
 
     let mut spec = Spec::default();

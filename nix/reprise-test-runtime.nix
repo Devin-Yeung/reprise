@@ -30,6 +30,7 @@ let
   manifest = builtins.toJSON {
     format_version = 1;
     command_profile = toString command-profile;
+    command_directory = "/bin";
   };
 in
 runCommand "reprise-test-runtime" { } ''

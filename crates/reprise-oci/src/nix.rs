@@ -57,6 +57,7 @@ impl From<&NixClosure> for Layer {
 pub struct RuntimeArtifact {
     closure: NixClosure,
     command_profile: PathBuf,
+    command_directory: PathBuf,
 }
 
 impl RuntimeArtifact {
@@ -64,7 +65,7 @@ impl RuntimeArtifact {
     ///
     /// The directory contains `manifest.json` and `store-paths`. Validation
     /// checks the filesystem only enough to reject an artifact that cannot
-    /// form its advertised `/bin` mount; it neither invokes Nix nor copies
+    /// form its advertised command mount; it neither invokes Nix nor copies
     /// store objects.
     pub fn load(artifact_directory: impl AsRef<Path>) -> Result<Self, Error> {
         let artifact_directory = artifact_directory.as_ref();
@@ -91,6 +92,7 @@ impl RuntimeArtifact {
         Ok(Self {
             closure,
             command_profile: manifest.command_profile,
+            command_directory: manifest.command_directory,
         })
     }
 
@@ -99,6 +101,11 @@ impl RuntimeArtifact {
     pub fn command_profile(&self) -> &Path {
         &self.command_profile
     }
+
+    /// The PATH entry that resolves commands exposed by this artifact.
+    pub fn path_environment(&self) -> String {
+        format!("PATH={}", self.command_directory.display())
+    }
 }
 
 /// The producer-owned part of a runtime artifact's stable file format.
@@ -106,6 +113,7 @@ impl RuntimeArtifact {
 struct RuntimeArtifactManifest {
     format_version: u32,
     command_profile: PathBuf,
+    command_directory: PathBuf,
 }
 
 /// Exposes the closure and its profile-backed command namespace read-only.
@@ -119,7 +127,7 @@ impl From<&RuntimeArtifact> for Layer {
                 .map(|path| Bind::read_only(path, path))
                 .chain(std::iter::once(Bind::read_only(
                     artifact.command_profile.join("bin"),
-                    "/bin",
+                    &artifact.command_directory,
                 ))),
         )
     }

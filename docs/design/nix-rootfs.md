@@ -50,15 +50,15 @@ runtime artifact
 The producer builds a command profile with `buildEnv`. It selects the packages
 whose `bin/` entries are part of the workload's public command surface, keeps
 Nix's collision detection enabled, and makes that profile the root of
-`closureInfo`. The artifact manifest names the profile explicitly; consumers
-must not infer it by searching store-path basenames.
+`closureInfo`. The artifact manifest names the profile and command directory
+explicitly; consumers must not infer either by searching store-path basenames.
 
 At preparation, the runtime mounts every listed store object at its original
 `/nix/store` path, then bind-mounts the profile's `bin/` directory read-only at
-`/bin`. A command API that accepts bare names also sets `PATH=/bin`; known
-entrypoints may use `/bin/<command>` directly. The profile is only a stable
-facade: its symlinks resolve into the same mounted closure and introduce no
-second dependency set.
+the manifest's command directory. A command API that accepts bare names uses
+the artifact's advertised PATH entry; known entrypoints may use
+`/bin/<command>` directly. The profile is only a stable facade: its symlinks
+resolve into the same mounted closure and introduce no second dependency set.
 
 `/bin` is a deliberately small OCI-facing command namespace, rather than a
 claim that the rootfs is a complete FHS distribution. If Reprise promises POSIX
