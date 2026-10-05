@@ -1,17 +1,15 @@
-//! Describes local Nix closures as OCI filesystem configuration.
+//! Describes the filesystem of an OCI bundle as a [`Rootfs`]: a read-only root
+//! directory with a stack of mount [`Layer`]s (tmpfs, `/proc`, `/sys`, binds).
 //!
-//! [`nix::NixClosure`] reads a closure artifact. Its `to_rootfs` method creates or
-//! reuses the caller's base directory and returns a [`nix::NixBasedRootFS`] that
-//! exposes a read-only [`Root`] and [`Mount`]s for the closure. The caller adds
-//! process and runtime configuration to its spec.
-//! No files are copied and no mounts are performed here.
+//! [`nix::NixClosure`] reads a local closure artifact and converts into a layer
+//! of read-only binds, so Nix store objects are one layer among others. The
+//! caller adds process and runtime configuration to its spec. No files are
+//! copied and no mounts are performed here; [`Rootfs::prepare`] only creates
+//! mount targets on the host.
 //!
 //! The artifact producer supplies a complete closure for the target architecture.
 //! The caller keeps its objects available and unchanged for containers and saved
 //! snapshots, including retaining Nix GC roots. This crate does not invoke Nix.
-//!
-//! [`Root`]: oci_spec::runtime::Root
-//! [`Mount`]: oci_spec::runtime::Mount
 
 mod error;
 pub mod filesystem;
