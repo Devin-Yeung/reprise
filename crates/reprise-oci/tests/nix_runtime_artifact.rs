@@ -19,7 +19,7 @@ fn runtime_artifact_mounts_its_closure_and_command_profile() {
     fs::write(
         artifact_directory.path().join("manifest.json"),
         format!(
-            r#"{{"format_version":1,"command_profile":"{}"}}"#,
+            r#"{{"format_version":1,"command_profile":"{}","command_directory":"/bin"}}"#,
             profile.display()
         ),
     )
@@ -31,6 +31,7 @@ fn runtime_artifact_mounts_its_closure_and_command_profile() {
     .unwrap();
 
     let artifact = RuntimeArtifact::load(artifact_directory.path()).unwrap();
+    assert_eq!(artifact.path_environment(), "PATH=/bin");
     let root = tempfile::tempdir().unwrap();
     let rootfs = Rootfs::new(root.path())
         .unwrap()
