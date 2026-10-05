@@ -42,7 +42,10 @@ fn runtime_artifact_mounts_its_closure_and_command_profile() {
     assert_eq!(mounts[0].destination(), &profile);
     assert_eq!(mounts[1].destination(), &dependency);
     assert_eq!(mounts[2].destination(), Path::new("/bin"));
-    assert_eq!(mounts[2].source().as_deref(), Some(profile.join("bin").as_path()));
+    assert_eq!(
+        mounts[2].source().as_deref(),
+        Some(profile.join("bin").as_path())
+    );
     assert_eq!(
         json!(mounts[2].options()),
         json!(["bind", "ro"]),
@@ -51,8 +54,9 @@ fn runtime_artifact_mounts_its_closure_and_command_profile() {
 
     rootfs.prepare().unwrap();
     assert!(root.path().join("bin").is_dir());
-    assert!(root
-        .path()
-        .join(profile.strip_prefix("/").unwrap())
-        .is_dir());
+    assert!(
+        root.path()
+            .join(profile.strip_prefix("/").unwrap())
+            .is_dir()
+    );
 }
