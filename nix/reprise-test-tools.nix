@@ -6,9 +6,12 @@ buildGoModule {
 
   # Keep workload builds independent of the Rust workspace.
   src = lib.cleanSource ../test-tools;
-  vendorHash = "sha256-YRAUYGyv9Nfy+1nmQKzG8CDVpi3u7C2tZC61dogtYx0=";
+  vendorHash = "sha256-m5mBubfbXXqXKsygF5j7cHEY+bXhAMcXUts5KBKoLzM=";
   subPackages = [ "cmd/memory-state" ];
 
   env.CGO_ENABLED = "0";
-  ldflags = [ "-s" "-w" ];
+  ldflags = [
+    "-s"
+    "-w"
+  ];
 }
