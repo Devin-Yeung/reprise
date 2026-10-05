@@ -70,28 +70,10 @@ impl Rootfs {
         mut self,
         layers: impl IntoIterator<Item = Layer>,
     ) -> Result<Self, RootfsError> {
-        let mut destinations = HashSet::new();
-        // Strict ancestors of every destination so far; a later mount on one
-        // of them would cover what is below.
-        let mut ancestors = HashSet::new();
-        let existing = self.layers.iter().flat_map(Layer::mounts);
         let incoming: Vec<Layer> = layers.into_iter().collect();
-        for mount in existing.chain(incoming.iter().flat_map(Layer::mounts)) {
-            let destination = mount.destination();
-            validate_destination(destination)?;
-            if destinations.contains(destination) {
-                return Err(RootfsError::DuplicateDestination {
-                    destination: destination.clone(),
-                });
-            }
-            if ancestors.contains(destination) {
-                return Err(RootfsError::HidesEarlierMount {
-                    destination: destination.clone(),
-                });
-            }
-            ancestors.extend(destination.ancestors().skip(1).map(Path::to_path_buf));
-            destinations.insert(destination.clone());
-        }
+        let mut destinations = MountDestinations::default();
+        destinations.add_layers(&self.layers)?;
+        destinations.add_layers(&incoming)?;
         self.layers.extend(incoming);
         Ok(self)
     }
@@ -101,9 +83,9 @@ impl Rootfs {
     /// Run this before the runtime makes the root read-only. It creates mount
     /// targets below the root directory and fails if a bind source is missing.
     pub fn prepare(&self) -> io::Result<()> {
-        for layer in &self.layers {
-            layer.prepare(self.root.path())?;
-        }
+        self.layers
+            .iter()
+            .try_for_each(|layer| layer.prepare(self.root.path()))?;
         Ok(())
     }
 
@@ -260,25 +242,63 @@ fn create_dir_target(root: &Path, destination: &Path) -> io::Result<()> {
     fs::create_dir_all(host_path(root, destination))
 }
 
-/// Maps a validated container path below the root directory. Removing the one
-/// leading slash makes it relative, so the result cannot leave the root.
+#[derive(Default)]
+struct MountDestinations {
+    earlier: HashSet<PathBuf>,
+}
+
+impl MountDestinations {
+    fn add_layers(&mut self, layers: &[Layer]) -> Result<(), RootfsError> {
+        for layer in layers {
+            for mount in layer.mounts() {
+                self.add(mount.destination().clone())?;
+            }
+        }
+        Ok(())
+    }
+
+    fn add(&mut self, destination: PathBuf) -> Result<(), RootfsError> {
+        validate_destination(&destination)?;
+        if self.earlier.contains(&destination) {
+            return Err(RootfsError::DuplicateDestination { destination });
+        }
+        // A later mount at a parent path makes an earlier child mount
+        // inaccessible. `Path::starts_with` compares path components, so
+        // `/var` does not match an unrelated destination such as `/varlog`.
+        if self
+            .earlier
+            .iter()
+            .any(|earlier| earlier.starts_with(&destination))
+        {
+            return Err(RootfsError::HidesEarlierMount { destination });
+        }
+        self.earlier.insert(destination);
+        Ok(())
+    }
+}
+
+/// Maps a validated container path below the root directory.
 fn host_path(root: &Path, destination: &Path) -> PathBuf {
+    // `Rootfs::with_layers` accepts only absolute destinations without `..`.
+    // Strip the root component before joining so this path remains below `root`.
     root.join(
         destination
             .strip_prefix("/")
-            .expect("validated mount destination"),
+            .expect("rootfs validates mount destinations"),
     )
 }
 
 fn validate_destination(destination: &Path) -> Result<(), RootfsError> {
-    let is_contained = destination.is_absolute()
+    // Reject aliases instead of normalizing them: otherwise paths such as
+    // `/var/../run` could evade duplicate and mount-hiding checks.
+    let is_normalized_absolute = destination.is_absolute()
         && destination.components().all(|component| {
             !matches!(
                 component,
                 Component::CurDir | Component::ParentDir | Component::Prefix(_)
             )
         });
-    if is_contained {
+    if is_normalized_absolute {
         Ok(())
     } else {
         Err(RootfsError::InvalidDestination {
@@ -378,6 +398,13 @@ mod tests {
         rootfs()
             .with_layers([Layer::tmpfs("/var"), Layer::tmpfs("/var/lib/workload")])
             .expect("a child mounted after its parent stays visible");
+    }
+
+    #[test]
+    fn accepts_destinations_with_a_common_text_prefix() {
+        rootfs()
+            .with_layers([Layer::tmpfs("/var"), Layer::tmpfs("/varlog")])
+            .expect("path-component siblings do not hide each other");
     }
 
     #[test]

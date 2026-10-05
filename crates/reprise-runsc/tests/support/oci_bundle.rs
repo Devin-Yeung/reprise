@@ -68,7 +68,7 @@ fn memory_state_binary(closure: &NixClosure) -> PathBuf {
             path.file_name()
                 .is_some_and(|name| name.to_string_lossy().contains("reprise-test-tools"))
         })
-        .unwrap_or_else(|| panic!("reprise-test-tools not found in closure store paths"))
+        .expect("reprise-test-tools not found in closure store paths")
         .join("bin/memory-state")
 }
 
