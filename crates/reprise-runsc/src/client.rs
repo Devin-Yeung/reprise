@@ -1,11 +1,15 @@
+use std::collections::BTreeMap;
+use std::os::fd::AsFd;
+use std::path::PathBuf;
 use std::process::{Command as ProcessCommand, ExitStatus, Stdio};
 
 use serde::Deserialize;
 
 use crate::command::{self, Command};
 use crate::{
-    CheckpointOptions, ContainerExit, ContainerId, ContainerIo, ContainerState, CreateOptions,
-    DeleteOptions, Error, Invocation, OutputTarget, RestoreOptions, RunscConfig, Version,
+    CheckpointOptions, ContainerExit, ContainerId, ContainerIo, ContainerState, ContainerStatus,
+    CreateOptions, DeleteOptions, Error, Invocation, OutputTarget, RestoreOptions, RunscConfig,
+    Version,
 };
 
 #[derive(Deserialize)]
@@ -13,6 +17,18 @@ struct WaitResponse {
     id: String,
     #[serde(rename = "exitStatus")]
     exit_status: u32,
+}
+
+#[derive(Deserialize)]
+struct StateResponse {
+    #[serde(rename = "ociVersion")]
+    oci_version: String,
+    id: String,
+    status: String,
+    pid: Option<u32>,
+    bundle: PathBuf,
+    #[serde(default)]
+    annotations: BTreeMap<String, String>,
 }
 
 /// Configures launch stdio without leaking pipes to background sandbox processes.
@@ -40,6 +56,16 @@ fn configure_stdio(
                 })?;
             cmd.stdout(file);
         }
+        OutputTarget::Fd(fd) => {
+            let fd = fd
+                .as_fd()
+                .try_clone_to_owned()
+                .map_err(|source| Error::Io {
+                    invocation: Box::new(invocation.clone()),
+                    source,
+                })?;
+            cmd.stdout(Stdio::from(fd));
+        }
     }
     match &io.stderr {
         OutputTarget::Inherit => {
@@ -58,6 +84,16 @@ fn configure_stdio(
                     source,
                 })?;
             cmd.stderr(file);
+        }
+        OutputTarget::Fd(fd) => {
+            let fd = fd
+                .as_fd()
+                .try_clone_to_owned()
+                .map_err(|source| Error::Io {
+                    invocation: Box::new(invocation.clone()),
+                    source,
+                })?;
+            cmd.stderr(Stdio::from(fd));
         }
     }
     Ok(())
@@ -157,7 +193,55 @@ impl Runsc {
 
     /// Reads OCI container state; it does not report application readiness.
     pub fn state(&self, id: &ContainerId) -> Result<ContainerState, Error> {
-        todo!()
+        let invocation = command::invocation(&self.config, Command::State { id: id.as_str() });
+        let output = ProcessCommand::new(&invocation.executable)
+            .args(&invocation.args)
+            .output()
+            .map_err(|source| Error::Io {
+                invocation: Box::new(invocation.clone()),
+                source,
+            })?;
+
+        if !output.status.success() {
+            return Err(Error::Command {
+                invocation: Box::new(invocation),
+                status: output.status,
+                stdout: Some(output.stdout),
+                stderr: Some(output.stderr),
+            });
+        }
+
+        let response: StateResponse =
+            serde_json::from_slice(&output.stdout).map_err(|err| Error::InvalidOutput {
+                invocation: Box::new(invocation.clone()),
+                reason: err.to_string(),
+                stdout: output.stdout.clone(),
+                stderr: output.stderr.clone(),
+            })?;
+
+        let container_id = ContainerId::new(&response.id).map_err(|err| Error::InvalidOutput {
+            invocation: Box::new(invocation),
+            reason: err.to_string(),
+            stdout: output.stdout,
+            stderr: output.stderr,
+        })?;
+
+        let status = match response.status.as_str() {
+            "creating" => ContainerStatus::Creating,
+            "created" => ContainerStatus::Created,
+            "running" => ContainerStatus::Running,
+            "stopped" => ContainerStatus::Stopped,
+            _ => ContainerStatus::Other(response.status),
+        };
+
+        Ok(ContainerState {
+            oci_version: response.oci_version,
+            id: container_id,
+            status,
+            pid: response.pid,
+            bundle: response.bundle,
+            annotations: response.annotations,
+        })
     }
 
     /// Lists container IDs in this client's runsc state root.
