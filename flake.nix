@@ -8,7 +8,12 @@
 
   outputs =
     { nixpkgs, flake-utils, ... }:
-    flake-utils.lib.eachDefaultSystem (
+    # x86_64-darwin is excluded: Nixpkgs 26.11 dropped support for it and fails to evaluate.
+    flake-utils.lib.eachSystem [
+      "aarch64-darwin"
+      "aarch64-linux"
+      "x86_64-linux"
+    ] (
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
