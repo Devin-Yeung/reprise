@@ -27,7 +27,7 @@
           inherit reprise-test-tools reprise-test-closure;
           default = reprise-test-tools;
         } // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          runsc = pkgs.gvisor;
+          runsc = pkgs.callPackage ./nix/gvisor.nix { };
         };
       }
     );
