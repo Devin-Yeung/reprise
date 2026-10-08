@@ -1,78 +1,61 @@
 package memorystate
 
 import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"strings"
+	"net"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
-func TestStateHandlerTracksMutations(t *testing.T) {
-	store, err := newStateStore()
+func TestUnixSocketServerPreservesOneInMemoryStateAcrossCommands(t *testing.T) {
+	// The serve process owns the state. Each client command is deliberately a
+	// fresh connection, matching the runsc exec calls that will query it before
+	// and after a checkpoint restore.
+	// Unix socket paths are short on macOS, so avoid t.TempDir's descriptive
+	// per-test path while retaining an isolated directory and cleanup.
+	directory, err := os.MkdirTemp("/tmp", "memory-state-")
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := newHandler(store)
-	initial := store.snapshot()
+	t.Cleanup(func() { _ = os.RemoveAll(directory) })
+	socketPath := filepath.Join(directory, "state.sock")
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := listener.Close(); err != nil {
+			t.Errorf("close listener: %v", err)
+		}
+	})
+
+	go func() {
+		if err := Serve(listener); err != nil {
+			t.Errorf("serve: %v", err)
+		}
+	}()
+
+	initial, err := Get(socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(initial.BootNonce) != 64 || initial.Value != nil || initial.Revision != 0 {
 		t.Fatalf("unexpected initial state: %#v", initial)
 	}
 
-	mutated := serveJSON(t, handler, http.MethodPost, "/mutate", `{"value":"fresh"}`)
+	mutated, err := Mutate(socketPath, "fresh")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if mutated.BootNonce != initial.BootNonce || mutated.Value == nil || *mutated.Value != "fresh" || mutated.Revision != 1 {
 		t.Fatalf("unexpected mutation response: %#v", mutated)
 	}
 
-	read := serveJSON(t, handler, http.MethodGet, "/state", "")
-	if read.BootNonce != mutated.BootNonce || read.Value == nil || *read.Value != "fresh" || read.Revision != 1 {
-		t.Fatalf("unexpected read response: %#v", read)
+	read, err := Get(socketPath)
+	if err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestMutateRejectsInvalidBodies(t *testing.T) {
-	tests := []struct {
-		name       string
-		body       string
-		statusCode int
-	}{
-		{name: "malformed", body: `{"value":`, statusCode: http.StatusBadRequest},
-		{name: "missing", body: `{}`, statusCode: http.StatusBadRequest},
-		{name: "null", body: `{"value":null}`, statusCode: http.StatusBadRequest},
-		{name: "trailing JSON", body: `{"value":"ok"} {}`, statusCode: http.StatusBadRequest},
-		{name: "oversized", body: `{"value":"` + strings.Repeat("x", maxBodyBytes) + `"}`, statusCode: http.StatusRequestEntityTooLarge},
+	if read.BootNonce != mutated.BootNonce || read.Value == nil || mutated.Value == nil || *read.Value != *mutated.Value || read.Revision != mutated.Revision {
+		t.Fatalf("read = %#v, want %#v", read, mutated)
 	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			store, err := newStateStore()
-			if err != nil {
-				t.Fatal(err)
-			}
-			request := httptest.NewRequest(http.MethodPost, "/mutate", strings.NewReader(test.body))
-			response := httptest.NewRecorder()
-			newHandler(store).ServeHTTP(response, request)
-			if response.Code != test.statusCode {
-				t.Fatalf("status = %d, want %d; body=%q", response.Code, test.statusCode, response.Body.String())
-			}
-			if state := store.snapshot(); state.Value != nil || state.Revision != 0 {
-				t.Fatalf("invalid request mutated state: %#v", state)
-			}
-		})
-	}
-}
-
-func serveJSON(t *testing.T, handler http.Handler, method, path, body string) State {
-	t.Helper()
-	request := httptest.NewRequest(method, path, strings.NewReader(body))
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%q", response.Code, http.StatusOK, response.Body.String())
-	}
-	var state State
-	if err := json.NewDecoder(response.Body).Decode(&state); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	return state
 }
