@@ -18,13 +18,13 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         reprise-test-tools = pkgs.callPackage ./nix/reprise-test-tools.nix { };
-        # Export dependency metadata; Rust generates root and store-mount configuration on the host
-        # where runsc will execute, before the benchmark starts measuring.
-        reprise-test-closure = pkgs.closureInfo { rootPaths = [ reprise-test-tools ]; };
+        reprise-test-runtime = pkgs.callPackage ./nix/reprise-test-runtime.nix {
+          inherit reprise-test-tools;
+        };
       in
       {
         packages = {
-          inherit reprise-test-tools reprise-test-closure;
+          inherit reprise-test-tools reprise-test-runtime;
           default = reprise-test-tools;
         } // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           runsc = pkgs.callPackage ./nix/gvisor.nix { };

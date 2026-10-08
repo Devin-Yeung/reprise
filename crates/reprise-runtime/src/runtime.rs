@@ -31,10 +31,11 @@ pub enum Platform {
 /// What a cold boot runs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Workload {
-    /// Base root and read-only mounts for the workload's local dependencies.
+    /// Base root, read-only dependency mounts, and public command namespace.
     /// Sources must remain available while instances or snapshots use them.
-    pub rootfs: reprise_oci::nix::NixClosure,
-    /// The process's argv. `args[0]` is an absolute path inside `rootfs`.
+    pub rootfs: reprise_oci::nix::RuntimeArtifact,
+    /// The process's argv. `args[0]` may name a command exposed by the runtime
+    /// artifact when `env` includes its advertised PATH.
     pub args: Vec<String>,
     /// The process's entire environment, as `KEY=VALUE` entries.
     pub env: Vec<String>,

@@ -1,6 +1,6 @@
 //! Prints a filesystem configuration fragment for a local Nix closure.
 //!
-//! Build with `nix build .#reprise-test-closure`, then run:
+//! Build with `nix build .#reprise-test-runtime`, then run:
 //! `cargo run --locked -p reprise-oci --example nix-rootfs -- result/store-paths /var/lib/reprise/base-rootfs`
 //!
 //! Creates the base directory if missing, then prints root and mounts, not a

@@ -10,6 +10,7 @@ mod tests {
     use std::thread;
     use std::time::{Duration, Instant};
 
+    use oci_spec::runtime::{Process, Spec};
     use reprise_oci::Layer;
     use reprise_runsc::{
         ContainerId, ContainerIo, ContainerStatus, CreateOptions, DeleteOptions, ExecOptions,
@@ -17,7 +18,7 @@ mod tests {
     };
     use serde::Deserialize;
 
-    use super::support::oci_bundle::PreparedBundle;
+    use super::support::oci_bundle::PreparedImage;
 
     #[derive(Deserialize)]
     struct MemoryState {
@@ -45,7 +46,8 @@ mod tests {
 
     #[test]
     fn smoke_run_wait_and_delete() {
-        let bundle = PreparedBundle::memory_state(&["version"], []);
+        let image = PreparedImage::create([]);
+        configure(&image, "memory-state", &["version"]);
         let state_root = tempfile::tempdir().expect("failed to create state root tempdir");
         let runsc = runsc(&state_root);
 
@@ -58,10 +60,7 @@ mod tests {
         let io = ContainerIo::builder()
             .stdout(OutputTarget::Fd(OwnedFd::from(stdout_writer)))
             .build();
-        let create_options = CreateOptions::builder()
-            .bundle(bundle.bundle_dir.path())
-            .io(io)
-            .build();
+        let create_options = CreateOptions::builder().bundle(image.path()).io(io).build();
         let id = ContainerId::generate();
 
         // The short version command can exit before a separate `runsc wait`
@@ -102,15 +101,15 @@ mod tests {
 
     #[test]
     fn smoke_detached_server_answers_exec_get() {
-        let bundle = PreparedBundle::memory_state(
+        let image = PreparedImage::create([Layer::tmpfs("/run")]);
+        configure(
+            &image,
+            "memory-state",
             &["serve", "--socket", "/run/memory-state.sock"],
-            [Layer::tmpfs("/run")],
         );
         let state_root = tempfile::tempdir().expect("failed to create state root tempdir");
         let runsc = runsc(&state_root);
-        let create_options = CreateOptions::builder()
-            .bundle(bundle.bundle_dir.path())
-            .build();
+        let create_options = CreateOptions::builder().bundle(image.path()).build();
         let id = ContainerId::generate();
 
         runsc
@@ -119,7 +118,7 @@ mod tests {
         drop(create_options);
 
         let get_state = ExecOptions::builder()
-            .program(&bundle.memory_state)
+            .program(PathBuf::from("memory-state"))
             .args(["get", "--socket", "/run/memory-state.sock"].map(Into::into))
             .build();
         let deadline = Instant::now() + Duration::from_secs(10);
@@ -147,5 +146,26 @@ mod tests {
         runsc
             .delete(&id, DeleteOptions { force: true })
             .expect("delete failed");
+    }
+
+    /// Writes the workload-specific OCI process configuration over a prepared
+    /// test image. Each test chooses its own program and arguments.
+    fn configure(image: &PreparedImage, program: &str, arguments: &[&str]) {
+        let mut process = Process::default();
+        process
+            .set_args(Some(
+                std::iter::once(program.to_owned())
+                    .chain(arguments.iter().map(|&argument| argument.to_owned()))
+                    .collect(),
+            ))
+            .set_env(Some(vec![image.path_environment().to_owned()]))
+            .set_cwd(PathBuf::from("/"));
+
+        let mut spec = Spec::default();
+        spec.set_root(Some(image.rootfs().root().clone()))
+            .set_mounts(Some(image.rootfs().mounts()))
+            .set_process(Some(process));
+        spec.save(image.path().join("config.json"))
+            .expect("failed to save bundle config.json");
     }
 }
