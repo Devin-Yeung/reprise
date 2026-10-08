@@ -33,7 +33,7 @@ mod tests {
     }
 
     fn runsc(state_root: &tempfile::TempDir) -> Runsc {
-        // Smoke tests must not access the host network. The OCI bundle provides
+        // Integration tests must not access the host network. The OCI bundle provides
         // its own `/run` tmpfs when a workload needs loopback IPC.
         Runsc::new(
             RunscConfig::builder()
@@ -45,7 +45,7 @@ mod tests {
     }
 
     #[test]
-    fn smoke_run_wait_and_delete() {
+    fn run_wait_and_delete() {
         let image = PreparedImage::create([]);
         configure(&image, "memory-state", &["version"]);
         let state_root = tempfile::tempdir().expect("failed to create state root tempdir");
@@ -64,7 +64,7 @@ mod tests {
         let id = ContainerId::generate();
 
         // The short version command can exit before a separate `runsc wait`
-        // invocation attaches. State is sufficient for this smoke test: it proves
+        // invocation attaches. State is sufficient for this integration test: it proves
         // the container reached its terminal lifecycle state without asserting an
         // exit code.
         runsc
@@ -100,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    fn smoke_detached_server_answers_exec_get() {
+    fn detached_server_answers_exec_get() {
         let image = PreparedImage::create([Layer::tmpfs("/run")]);
         configure(
             &image,
