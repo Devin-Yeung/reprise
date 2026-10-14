@@ -35,18 +35,5 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@v3
       - uses: DeterminateSystems/magic-nix-cache-action@main
       - uses: dtolnay/rust-toolchain@1.95.0
-      - name: Build test runtime artifact
-        run: nix build .#reprise-test-runtime --out-link result
-      - name: Build runsc
-        run: nix build .#runsc --out-link result-runsc
-      - name: Build smoke integration test binary
-        run: cargo test -p reprise-runsc --test smoke --features integration-tests --no-run
-      - name: Run smoke integration test
-        env:
-          REPRISE_RUNSC_BIN: ${{ github.workspace }}/result-runsc/bin/runsc
-          REPRISE_TEST_RUNTIME: ${{ github.workspace }}/result
-        run: |
-          sudo -E env "PATH=$PATH" \
-            "REPRISE_RUNSC_BIN=$REPRISE_RUNSC_BIN" \
-            "REPRISE_TEST_RUNTIME=$REPRISE_TEST_RUNTIME" \
-            $(which cargo) test -p reprise-runsc --test smoke --features integration-tests -- --nocapture
+      - name: Run integration tests
+        run: cargo xtask integration --nocapture
