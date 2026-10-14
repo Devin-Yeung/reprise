@@ -252,7 +252,31 @@ impl Runsc {
     /// The caller owns checkpoint directory preparation, compatibility metadata,
     /// and filesystem consistency; this is not a snapshot publication operation.
     pub fn checkpoint(&self, id: &ContainerId, options: &CheckpointOptions) -> Result<(), Error> {
-        todo!()
+        let invocation = command::invocation(
+            &self.config,
+            Command::Checkpoint {
+                id: id.as_str(),
+                options,
+            },
+        );
+        let output = ProcessCommand::new(&invocation.executable)
+            .args(&invocation.args)
+            .output()
+            .map_err(|source| Error::Io {
+                invocation: Box::new(invocation.clone()),
+                source,
+            })?;
+
+        if !output.status.success() {
+            return Err(Error::Command {
+                invocation: Box::new(invocation),
+                status: output.status,
+                stdout: Some(output.stdout),
+                stderr: Some(output.stderr),
+            });
+        }
+
+        Ok(())
     }
 
     /// Invokes `restore --detach` using the supplied bundle and execution image.
@@ -261,7 +285,32 @@ impl Runsc {
     /// wrapper neither checks snapshot compatibility nor falls back to cold boot.
     /// Background loading may keep reading the image after this call returns.
     pub fn restore(&self, id: &ContainerId, options: &RestoreOptions) -> Result<(), Error> {
-        todo!()
+        let invocation = command::invocation(
+            &self.config,
+            Command::Restore {
+                id: id.as_str(),
+                options,
+            },
+        );
+        let mut cmd = ProcessCommand::new(&invocation.executable);
+        cmd.args(&invocation.args);
+        configure_stdio(&mut cmd, &options.create.io, &invocation)?;
+
+        let status = cmd.status().map_err(|source| Error::Io {
+            invocation: Box::new(invocation.clone()),
+            source,
+        })?;
+
+        if !status.success() {
+            return Err(Error::Command {
+                invocation: Box::new(invocation),
+                status,
+                stdout: None,
+                stderr: None,
+            });
+        }
+
+        Ok(())
     }
 
     /// Reads OCI container state; it does not report application readiness.
