@@ -8,35 +8,36 @@
 
 pub mod integration;
 
-/// Why a task could not run.
-#[derive(Debug, thiserror::Error)]
-pub enum TaskError {
-    /// No task name was given.
-    #[error("usage: cargo run -p xtask -- <task> [args...]\ntasks: integration")]
-    MissingTask,
-    /// The task name is not one of the known tasks.
-    #[error("unknown task: {task}\ntasks: integration")]
-    UnknownTask { task: String },
-    /// The task itself failed.
-    #[error(transparent)]
-    Task(#[from] integration::Error),
+use clap::{Parser, Subcommand};
+
+/// Developer task runner for the Reprise workspace.
+#[derive(Debug, Parser)]
+#[command(name = "xtask", bin_name = "cargo run -p xtask --")]
+pub struct Cli {
+    #[command(subcommand)]
+    pub task: Task,
 }
 
-/// Dispatches `args` (task name and its arguments, without the binary name)
-/// to a task and returns the process exit code.
-pub fn run(args: &[String]) -> Result<std::process::ExitCode, TaskError> {
-    let (task, rest) = match args.split_first() {
-        None => return Err(TaskError::MissingTask),
-        Some((task, rest)) => (task.as_str(), rest),
-    };
-    match task {
-        "integration" => {
-            let status = integration::run(rest)?;
+/// A task runnable through `cargo run -p xtask -- <task>`.
+#[derive(Debug, Subcommand)]
+pub enum Task {
+    /// Run the runsc integration tests as root.
+    // `--help` belongs to the test binary, so clap must not intercept it here.
+    #[command(disable_help_flag = true)]
+    Integration {
+        /// Arguments passed through to the test binary, e.g. `--nocapture`.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+}
+
+/// Runs the parsed task and returns the process exit code.
+pub fn run(cli: Cli) -> anyhow::Result<std::process::ExitCode> {
+    match cli.task {
+        Task::Integration { args } => {
+            let status = integration::run(&args)?;
             Ok(exit_code(status))
         }
-        other => Err(TaskError::UnknownTask {
-            task: other.to_owned(),
-        }),
     }
 }
 
