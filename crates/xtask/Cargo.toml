@@ -11,6 +11,7 @@ publish = false
 [dependencies]
 serde_json = "1"
 thiserror.workspace = true
+typed-builder = "0.23.2"
 
 [lints]
 workspace = true

@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use super::{Environment, IntegrationPlan, OutputResolver, RUNSC_ENV, RUNTIME_ENV};
+use super::{Environment, IntegrationPlanRequest, OutputResolver, RUNSC_ENV, RUNTIME_ENV};
 
 #[test]
 fn builder_prefers_explicit_environment_without_resolving_outputs() {
@@ -13,11 +13,13 @@ fn builder_prefers_explicit_environment_without_resolving_outputs() {
     ]);
     let outputs = TestOutputs::default();
 
-    let plan = IntegrationPlan::builder(PathBuf::from("/test/integration"))
-        .extra_args(["--nocapture".to_owned()])
+    let plan = IntegrationPlanRequest::builder()
+        .executable(PathBuf::from("/test/integration"))
+        .extra_args(vec!["--nocapture".to_owned()])
         .environment(&environment)
         .outputs(&outputs)
         .build()
+        .resolve()
         .expect("explicit environment should build a plan");
 
     assert_eq!(
@@ -39,10 +41,12 @@ fn builder_resolves_missing_environment_from_nix_outputs() {
         (".#reprise-test-runtime", "/nix/store/runtime"),
     ]);
 
-    let plan = IntegrationPlan::builder(PathBuf::from("/test/integration"))
+    let plan = IntegrationPlanRequest::builder()
+        .executable(PathBuf::from("/test/integration"))
         .environment(&environment)
         .outputs(&outputs)
         .build()
+        .resolve()
         .expect("nix outputs should build a plan");
 
     assert_eq!(
