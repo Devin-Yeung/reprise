@@ -13,8 +13,8 @@ mod tests {
     use oci_spec::runtime::{Process, Spec};
     use reprise_oci::Layer;
     use reprise_runsc::{
-        ContainerId, ContainerIo, ContainerStatus, CreateOptions, DeleteOptions, ExecOptions,
-        GlobalOptions, Network, OutputTarget, Runsc, RunscConfig,
+        CheckpointOptions, ContainerId, ContainerIo, ContainerStatus, CreateOptions, DeleteOptions,
+        ExecOptions, GlobalOptions, Network, OutputTarget, RestoreOptions, Runsc, RunscConfig,
     };
     use serde::Deserialize;
 
@@ -23,7 +23,36 @@ mod tests {
     #[derive(Deserialize)]
     struct MemoryState {
         boot_nonce: String,
+        value: Option<String>,
         revision: u64,
+    }
+
+    /// Removes every container a test starts, including when a later assertion
+    /// or an unfinished client operation panics.
+    struct ContainerCleanup<'runsc> {
+        runsc: &'runsc Runsc,
+        ids: Vec<ContainerId>,
+    }
+
+    impl<'runsc> ContainerCleanup<'runsc> {
+        fn new(runsc: &'runsc Runsc) -> Self {
+            Self {
+                runsc,
+                ids: Vec::new(),
+            }
+        }
+
+        fn add(&mut self, id: ContainerId) {
+            self.ids.push(id);
+        }
+    }
+
+    impl Drop for ContainerCleanup<'_> {
+        fn drop(&mut self) {
+            for id in &self.ids {
+                let _ = self.runsc.delete(id, DeleteOptions { force: true });
+            }
+        }
     }
 
     fn runsc_binary() -> PathBuf {
@@ -117,24 +146,7 @@ mod tests {
             .expect("run_detached failed");
         drop(create_options);
 
-        let get_state = ExecOptions::builder()
-            .program(PathBuf::from("memory-state"))
-            .args(["get", "--socket", "/run/memory-state.sock"].map(Into::into))
-            .build();
-        let deadline = Instant::now() + Duration::from_secs(10);
-        let state = loop {
-            let output = runsc.exec(&id, &get_state).expect("exec get failed");
-            if output.status.success() {
-                break serde_json::from_slice::<MemoryState>(&output.stdout)
-                    .unwrap_or_else(|err| panic!("exec get returned invalid JSON: {err}"));
-            }
-            assert!(
-                Instant::now() < deadline,
-                "memory-state did not become ready: {}",
-                String::from_utf8_lossy(&output.stderr),
-            );
-            thread::sleep(Duration::from_millis(10));
-        };
+        let state = wait_for_memory_state(&runsc, &id);
 
         assert_eq!(
             state.boot_nonce.len(),
@@ -146,6 +158,114 @@ mod tests {
         runsc
             .delete(&id, DeleteOptions { force: true })
             .expect("delete failed");
+    }
+
+    #[test]
+    fn checkpoint_and_restore_preserve_memory_state() {
+        let image = PreparedImage::create([Layer::tmpfs("/run")]);
+        configure(
+            &image,
+            "memory-state",
+            &["serve", "--socket", "/run/memory-state.sock"],
+        );
+        let state_root = tempfile::tempdir().expect("failed to create state root tempdir");
+        let checkpoint = tempfile::tempdir().expect("failed to create checkpoint directory");
+        let runsc = runsc(&state_root);
+        let mut cleanup = ContainerCleanup::new(&runsc);
+        let source = ContainerId::generate();
+        cleanup.add(source.clone());
+        let create = CreateOptions::builder().bundle(image.path()).build();
+
+        runsc
+            .run_detached(&source, &create)
+            .expect("run_detached failed");
+        drop(create);
+
+        let before_checkpoint = wait_for_memory_state(&runsc, &source);
+        let mutate = ExecOptions::builder()
+            .program(PathBuf::from("memory-state"))
+            .args(
+                [
+                    "mutate",
+                    "checkpointed",
+                    "--socket",
+                    "/run/memory-state.sock",
+                ]
+                .map(Into::into),
+            )
+            .build();
+        let output = runsc.exec(&source, &mutate).expect("exec mutate failed");
+        assert!(
+            output.status.success(),
+            "mutation failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let checkpointed: MemoryState = serde_json::from_slice(&output.stdout)
+            .unwrap_or_else(|err| panic!("exec mutate returned invalid JSON: {err}"));
+        assert_eq!(checkpointed.boot_nonce, before_checkpoint.boot_nonce);
+        assert_eq!(checkpointed.value.as_deref(), Some("checkpointed"));
+        assert_eq!(checkpointed.revision, 1);
+
+        runsc
+            .checkpoint(
+                &source,
+                &CheckpointOptions::builder()
+                    .image_path(checkpoint.path())
+                    .build(),
+            )
+            .expect("checkpoint failed");
+
+        let restored = ContainerId::generate();
+        cleanup.add(restored.clone());
+        runsc
+            .restore(
+                &restored,
+                &RestoreOptions::builder()
+                    .create(CreateOptions::builder().bundle(image.path()).build())
+                    .image_path(checkpoint.path())
+                    .build(),
+            )
+            .expect("restore failed");
+
+        let restored_state = wait_for_memory_state(&runsc, &restored);
+        assert_eq!(restored_state.boot_nonce, checkpointed.boot_nonce);
+        assert_eq!(restored_state.value, checkpointed.value);
+        assert_eq!(restored_state.revision, checkpointed.revision);
+
+        let output = runsc
+            .exec(&restored, &mutate)
+            .expect("exec mutate after restore failed");
+        assert!(
+            output.status.success(),
+            "mutation after restore failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let after_restore: MemoryState = serde_json::from_slice(&output.stdout)
+            .unwrap_or_else(|err| panic!("exec mutate returned invalid JSON: {err}"));
+        assert_eq!(after_restore.boot_nonce, checkpointed.boot_nonce);
+        assert_eq!(after_restore.value.as_deref(), Some("checkpointed"));
+        assert_eq!(after_restore.revision, 2);
+    }
+
+    fn wait_for_memory_state(runsc: &Runsc, id: &ContainerId) -> MemoryState {
+        let get_state = ExecOptions::builder()
+            .program(PathBuf::from("memory-state"))
+            .args(["get", "--socket", "/run/memory-state.sock"].map(Into::into))
+            .build();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let output = runsc.exec(id, &get_state).expect("exec get failed");
+            if output.status.success() {
+                break serde_json::from_slice(&output.stdout)
+                    .unwrap_or_else(|err| panic!("exec get returned invalid JSON: {err}"));
+            }
+            assert!(
+                Instant::now() < deadline,
+                "memory-state did not become ready: {}",
+                String::from_utf8_lossy(&output.stderr),
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
     }
 
     /// Writes the workload-specific OCI process configuration over a prepared
