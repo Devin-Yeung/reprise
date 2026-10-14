@@ -32,6 +32,10 @@ pub enum Error {
     Cargo(#[from] std::io::Error),
     #[error("cargo did not report an executable for the reprise-runsc integration test target")]
     NoIntegrationBinary,
+    #[error("integration plan requires an environment")]
+    MissingEnvironment,
+    #[error("integration plan requires a Nix output resolver")]
+    MissingOutputResolver,
     #[error("`nix build {flake_ref}` failed")]
     Nix {
         flake_ref: &'static str,
@@ -52,6 +56,97 @@ pub struct IntegrationPlan {
     pub extra_args: Vec<String>,
 }
 
+impl IntegrationPlan {
+    /// Starts constructing a plan for `executable`.
+    pub fn builder(executable: PathBuf) -> IntegrationPlanBuilder<'static, 'static> {
+        IntegrationPlanBuilder {
+            executable,
+            extra_args: Vec::new(),
+            environment: None,
+            outputs: None,
+        }
+    }
+}
+
+/// Builds an [`IntegrationPlan`] from its execution inputs and dependencies.
+pub struct IntegrationPlanBuilder<'environment, 'outputs> {
+    executable: PathBuf,
+    extra_args: Vec<String>,
+    environment: Option<&'environment dyn Environment>,
+    outputs: Option<&'outputs dyn OutputResolver>,
+}
+
+impl<'env, 'resolver> IntegrationPlanBuilder<'env, 'resolver> {
+    /// Passes `args` through to the integration-test binary.
+    pub fn extra_args(mut self, args: impl IntoIterator<Item = String>) -> Self {
+        self.extra_args.extend(args);
+        self
+    }
+
+    /// Uses `environment` before falling back to Nix outputs.
+    pub fn environment<'new_environment>(
+        self,
+        environment: &'new_environment dyn Environment,
+    ) -> IntegrationPlanBuilder<'new_environment, 'resolver> {
+        IntegrationPlanBuilder {
+            executable: self.executable,
+            extra_args: self.extra_args,
+            environment: Some(environment),
+            outputs: self.outputs,
+        }
+    }
+
+    /// Resolves unset environment variables through `outputs`.
+    pub fn outputs<'new_outputs>(
+        self,
+        outputs: &'new_outputs dyn OutputResolver,
+    ) -> IntegrationPlanBuilder<'env, 'new_outputs> {
+        IntegrationPlanBuilder {
+            executable: self.executable,
+            extra_args: self.extra_args,
+            environment: self.environment,
+            outputs: Some(outputs),
+        }
+    }
+
+    /// Resolves the test environment and produces the command plan.
+    ///
+    /// Explicit `REPRISE_...` variables take precedence over the Nix output
+    /// paths, matching CI's `env REPRISE_...=... cargo test ...` invocation.
+    pub fn build(self) -> Result<IntegrationPlan> {
+        let environment = self.environment.ok_or(Error::MissingEnvironment)?;
+        let outputs = self.outputs.ok_or(Error::MissingOutputResolver)?;
+        let runsc = match environment.var(RUNSC_ENV) {
+            Some(value) => value,
+            None => OsString::from(
+                outputs
+                    .resolve(RUNSC_REF)
+                    .map_err(|source| Error::Nix {
+                        flake_ref: RUNSC_REF,
+                        source,
+                    })?
+                    .join("bin")
+                    .join("runsc"),
+            ),
+        };
+        let runtime = match environment.var(RUNTIME_ENV) {
+            Some(value) => value,
+            None => OsString::from(outputs.resolve(RUNTIME_REF).map_err(|source| Error::Nix {
+                flake_ref: RUNTIME_REF,
+                source,
+            })?),
+        };
+        Ok(IntegrationPlan {
+            executable: self.executable,
+            env: vec![
+                (RUNSC_ENV.to_owned(), runsc),
+                (RUNTIME_ENV.to_owned(), runtime),
+            ],
+            extra_args: self.extra_args,
+        })
+    }
+}
+
 /// Looks up process environment variables. [`std::env`] in production;
 /// a fixed map in tests.
 pub trait Environment {
@@ -62,48 +157,6 @@ pub trait Environment {
 /// `nix build --print-out-paths` in production; a fixture in tests.
 pub trait OutputResolver {
     fn resolve(&self, flake_ref: &str) -> std::io::Result<PathBuf>;
-}
-
-/// Reads `REPRISE_RUNSC_BIN` and `REPRISE_TEST_RUNTIME` from `environment`,
-/// falling back to `outputs` for anything unset.
-///
-/// Precedence follows CI (`env REPRISE_...=... cargo test ...`): a set
-/// environment variable always wins. `REPRISE_RUNSC_BIN` resolved through
-/// nix is the package's `bin/runsc`.
-pub fn plan(
-    executable: PathBuf,
-    extra_args: Vec<String>,
-    environment: &dyn Environment,
-    outputs: &dyn OutputResolver,
-) -> Result<IntegrationPlan> {
-    let runsc = match environment.var(RUNSC_ENV) {
-        Some(value) => value,
-        None => OsString::from(
-            outputs
-                .resolve(RUNSC_REF)
-                .map_err(|source| Error::Nix {
-                    flake_ref: RUNSC_REF,
-                    source,
-                })?
-                .join("bin")
-                .join("runsc"),
-        ),
-    };
-    let runtime = match environment.var(RUNTIME_ENV) {
-        Some(value) => value,
-        None => OsString::from(outputs.resolve(RUNTIME_REF).map_err(|source| Error::Nix {
-            flake_ref: RUNTIME_REF,
-            source,
-        })?),
-    };
-    Ok(IntegrationPlan {
-        executable,
-        env: vec![
-            (RUNSC_ENV.to_owned(), runsc),
-            (RUNTIME_ENV.to_owned(), runtime),
-        ],
-        extra_args,
-    })
 }
 
 /// The full argv for the run: `sudo env NAME=VALUE ... executable args...`.
@@ -197,14 +250,13 @@ pub fn run(extra_args: &[String]) -> Result<ExitStatus> {
             .map(str::to_owned),
     )?;
 
-    let resolved = plan(
-        executable,
-        extra_args.to_vec(),
-        &SystemEnvironment,
-        &NixOutputs {
-            workspace_root: workspace_root.clone(),
-        },
-    )?;
+    let environment = SystemEnvironment;
+    let outputs = NixOutputs { workspace_root };
+    let resolved = IntegrationPlan::builder(executable)
+        .extra_args(extra_args.iter().cloned())
+        .environment(&environment)
+        .outputs(&outputs)
+        .build()?;
     execute(&resolved).map_err(Error::Cargo)
 }
 
@@ -243,5 +295,8 @@ impl OutputResolver for NixOutputs {
     }
 }
 
-/// [`plan`]'s result type, re-exported for readability.
+/// [`IntegrationPlanBuilder::build`]'s result type, re-exported for readability.
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(test)]
+mod tests;
